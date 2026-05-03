@@ -1,0 +1,6 @@
+^\.DS_Store$
+^\.gitignore$
+^\.Rhistory$
+^.*\.Rcheck$
+^.*\.tar\.gz$
+^shortcode\.R$

@@ -1,0 +1,220 @@
+---
+title: "Ordinal survey SEM with lavaan.survey"
+author: "lavaan.survey contributors"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::pdf_document:
+    toc: true
+    number_sections: true
+geometry: margin=1in
+vignette: >
+  %\VignetteIndexEntry{Ordinal survey SEM with lavaan.survey}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+This vignette shows a complete ordinal CFA workflow with a complex sampling
+design. The workflow has two stages:
+
+1. Fit the ordinal model with `lavaan`, using `ordered = TRUE`.
+2. Pass the fitted model and a `survey` design object to
+   `lavaan.survey.ordinal()`.
+
+The ordinal survey function estimates thresholds and polychoric correlations
+with the sampling weights from the survey design, obtains their design-based
+covariance matrix from replicate weights, and then refits the model with a
+DWLS/WLSMV-style weight matrix.
+
+## Setup
+
+```{r packages}
+library(MASS)
+library(lavaan)
+library(survey)
+library(lavaan.survey)
+```
+
+## Simulate ordinal survey data
+
+The example uses six ordinal indicators, two latent factors, clustering,
+stratification, sampling weights, and a grouping variable. The same structure
+also works with more indicators; a smaller example keeps the vignette quick to
+run during package checks.
+
+```{r simulate-data}
+set.seed(42)
+
+n <- 600
+items <- paste0("y", 1:6)
+
+Sigma <- matrix(0.20, nrow = 6, ncol = 6)
+Sigma[1:3, 1:3] <- 0.60
+Sigma[4:6, 4:6] <- 0.60
+diag(Sigma) <- 1
+
+continuous <- MASS::mvrnorm(n = n, mu = rep(0, 6), Sigma = Sigma)
+dat <- as.data.frame(continuous)
+names(dat) <- items
+
+for (item in items) {
+  dat[[item]] <- cut(
+    dat[[item]],
+    breaks = c(-Inf, -0.7, 0, 0.7, Inf),
+    labels = 1:4,
+    ordered_result = TRUE
+  )
+}
+
+dat$cluster <- factor(rep(seq_len(60), each = n / 60))
+dat$stratum <- factor(ifelse(as.integer(dat$cluster) <= 30, "A", "B"))
+dat$weight <- round(runif(n, min = 0.5, max = 2.0), 2)
+dat$gender <- factor(sample(c("girls", "boys"), n, replace = TRUE))
+```
+
+Declare the complex sampling design with the `survey` package.
+
+```{r survey-design}
+des <- survey::svydesign(
+  id = ~cluster,
+  strata = ~stratum,
+  weights = ~weight,
+  data = dat,
+  nest = TRUE
+)
+```
+
+## Single-group ordinal CFA
+
+Start by fitting the ordinal CFA with `lavaan`. The important part is
+`ordered = items`, which tells `lavaan` to estimate thresholds and polychoric
+correlations for the ordinal indicators.
+
+```{r model}
+cfa_model <- '
+  engagement =~ y1 + y2 + y3
+  support    =~ y4 + y5 + y6
+'
+```
+
+```{r single-group}
+fit_naive <- lavaan::cfa(
+  model = cfa_model,
+  data = dat,
+  ordered = items
+)
+
+fit_survey <- lavaan.survey.ordinal(
+  lavaan.fit = fit_naive,
+  survey.design = des,
+  estimator = "WLSMV"
+)
+```
+
+Selected robust fit measures can be extracted with the usual `lavaan`
+functions.
+
+```{r single-group-fit}
+fitMeasures(
+  fit_survey,
+  c("chisq.scaled", "df.scaled", "pvalue.scaled", "cfi.robust", "rmsea.robust")
+)
+```
+
+The parameter table also uses the usual `lavaan` interface.
+
+```{r single-group-parameters}
+subset(
+  parameterEstimates(fit_survey, standardized = TRUE),
+  op == "=~",
+  select = c("lhs", "op", "rhs", "est", "se", "pvalue", "std.all")
+)
+```
+
+## Multiple-group ordinal CFA
+
+Multiple-group models follow the same pattern. First fit the grouping model in
+`lavaan`, then apply the survey correction.
+
+```{r multiple-group}
+fit_configural <- lavaan::cfa(
+  model = cfa_model,
+  data = dat,
+  ordered = items,
+  group = "gender"
+)
+
+fit_configural_survey <- lavaan.survey.ordinal(
+  lavaan.fit = fit_configural,
+  survey.design = des,
+  estimator = "WLSMV"
+)
+
+fitMeasures(
+  fit_configural_survey,
+  c("chisq.scaled", "df.scaled", "pvalue.scaled", "cfi.robust", "rmsea.robust")
+)
+```
+
+## Loading and threshold invariance
+
+For ordinal indicators, a common invariance step is to constrain factor
+loadings and thresholds to equality across groups.
+
+```{r scalar-invariance}
+fit_scalar <- lavaan::cfa(
+  model = cfa_model,
+  data = dat,
+  ordered = items,
+  group = "gender",
+  group.equal = c("loadings", "thresholds")
+)
+
+fit_scalar_survey <- lavaan.survey.ordinal(
+  lavaan.fit = fit_scalar,
+  survey.design = des,
+  estimator = "WLSMV"
+)
+
+fitMeasures(
+  fit_scalar_survey,
+  c("chisq.scaled", "df.scaled", "pvalue.scaled", "cfi.robust", "rmsea.robust")
+)
+```
+
+The equality constraints are preserved because `lavaan.survey.ordinal()`
+refits the original `lavaan` parameter table.
+
+```{r scalar-labels}
+pe <- parameterEstimates(fit_scalar_survey)
+
+subset(
+  pe,
+  op %in% c("=~", "|") & label != "",
+  select = c("lhs", "op", "rhs", "group", "label", "est", "se")
+)
+```
+
+## Practical notes
+
+The current ordinal implementation is intended for standard `survey.design`
+objects and replicate-weight designs supported by the `survey` package. If a
+standard design is supplied, it is converted internally with
+`survey::as.svrepdesign()`.
+
+The ordinal variables used in the model should have stable categories in the
+full sample and within each group. Very sparse categories can make thresholds
+and polychoric correlations unstable, especially in multiple-group models.
+
+At this stage, the ordinal extension is designed for CFA/SEM models where all
+observed model indicators are ordered categorical variables. Mixed continuous
+and ordinal observed variables should be treated as experimental until more
+tests are added.

@@ -1,0 +1,28 @@
+Package: lavaan.survey
+Type: Package
+Title: Complex Survey Structural Equation Modeling (SEM)
+Version: 1.2.0
+Date: 2026-05-03
+Author: Daniel Oberski
+Maintainer: Daniel Oberski <daniel.oberski@gmail.com>
+Description: Fit structural equation models (SEM) including factor analysis,
+    multivariate regression models with latent variables and many other latent
+    variable models while correcting estimates, standard errors, and
+    chi-square-derived fit measures for a complex sampling design. 
+    Incorporate clustering, stratification, sampling weights, and 
+    finite population corrections into a SEM analysis.
+    Wrapper around packages lavaan and survey. This modernized local build adds
+    initial support for ordinal survey SEM via replicate-weight covariance
+    estimation of thresholds and polychoric correlations.
+Depends: R(>= 2.14.0), lavaan(>= 0.5-20), survey(>= 3.30-3)
+Imports: MASS
+License: GPL (>= 2)
+URL: http://daob.nl/
+Suggests: testthat, mice, mitools,
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
+NeedsCompilation: no
+Packaged: 2016-12-22 11:26:31 UTC; daob
+Repository: CRAN
+Date/Publication: 2016-12-22 23:43:24
