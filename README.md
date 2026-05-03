@@ -1,11 +1,16 @@
 # lavaan.survey
 
+This repository is an unofficial modernization fork of the original
+`lavaan.survey` package by Daniel Oberski. It is not an official CRAN release
+and has not yet been reviewed or endorsed by the original author/maintainer.
+The original copyright and GPL (>= 2) license are preserved.
+
 `lavaan.survey` fits structural equation models with complex survey designs by
 combining `lavaan` model fitting with design information from the `survey`
 package.
 
-This local 1.2.0 build modernizes the original package for current `lavaan`
-versions and adds initial support for ordinal survey SEM through
+This 1.2.0 modernization snapshot updates the original package for current
+`lavaan` versions and adds initial support for ordinal survey SEM through
 `lavaan.survey.ordinal()`.
 
 ## Installation

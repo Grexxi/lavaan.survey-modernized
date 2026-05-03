@@ -1,5 +1,9 @@
 # lavaan.survey 1.2.0
 
+This is an unofficial modernization fork of the original `lavaan.survey`
+package. It is not an official CRAN release and has not yet been reviewed or
+endorsed by the original author/maintainer.
+
 ## New features
 
 * Added `lavaan.survey.ordinal()` for ordinal structural equation models with
