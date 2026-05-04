@@ -43,6 +43,8 @@ endorsed by the original author/maintainer.
 * Documented the continuous multiple-imputation survey workflow in the README.
 * Added a continuous multiple-imputation Mplus Demo validation workflow using
   the same ten imputed datasets in Mplus and `lavaan.survey()`.
+* Added an ordinal multiple-imputation Mplus Demo validation workflow using
+  the same ten imputed datasets in Mplus and `lavaan.survey.ordinal()`.
 * Updated legacy numerical tolerances for current `lavaan` and `survey`
   versions.
 

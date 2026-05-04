@@ -347,6 +347,128 @@ with `TYPE = IMPUTATION` runs the model across completed datasets and reports
 means for several fit quantities. The parameter agreement is therefore the more
 important validation target here.
 
+## Validation 4: Ordinal Multiple-Imputation Survey CFA
+
+### Scope
+
+This validation checks the initial multiple-imputation path in
+`lavaan.survey.ordinal()`. The script simulates the same two-factor,
+six-indicator CFA structure used in the first ordinal validation, but stores the
+observed indicators as four-category ordered variables. The dataset has 600
+observations, 60 clusters, 6 strata, and sampling weights.
+
+Artificial missingness is introduced in three indicators:
+
+```text
+y2  MAR, depending on y1 and stratum
+y5  MAR, depending on y4 and weight
+y6  MCAR, about 15 percent
+```
+
+The missing ordinal responses are imputed ten times with `mice` using
+proportional-odds imputation (`polr`). The same ten completed datasets are then
+analyzed by `lavaan.survey.ordinal()` and Mplus Demo.
+
+The model is:
+
+```text
+f1 =~ y1 + y2 + y3
+f2 =~ y4 + y5 + y6
+f1 ~~ f2
+```
+
+The corresponding Mplus input uses:
+
+```text
+DATA: TYPE = IMPUTATION;
+VARIABLE: CATEGORICAL ARE y1-y6;
+VARIABLE: WEIGHT IS wgt; CLUSTER IS clu; STRATIFICATION IS str;
+ANALYSIS: TYPE = COMPLEX; ESTIMATOR = WLSMV; PARAMETERIZATION = DELTA;
+```
+
+### Commands
+
+Prepare the imputed datasets, Mplus input, and `lavaan.survey.ordinal()`
+results:
+
+```r
+source("validation/mplus-demo/prepare_ordinal_mi_validation_files.R")
+```
+
+Run Mplus Demo from `validation/mplus-demo`:
+
+```sh
+/Applications/MplusDemo/mpdemo ordinal_mi_complex.inp
+```
+
+Parse and compare the output:
+
+```r
+source("validation/mplus-demo/compare_mplus_ordinal_mi_output.R")
+```
+
+### Fit Measures
+
+| Measure | lavaan scaled | lavaan robust | Mplus WLSMV imputation mean |
+| --- | ---: | ---: | ---: |
+| Chi-square | 7.045 | -- | 10.300 |
+| df | 8 | -- | 8 |
+| p-value | 0.532 | -- | -- |
+| CFI | 1.000 | 1.000 | 0.999 |
+| TLI | 1.001 | 1.015 | 0.998 |
+| RMSEA | 0.000 | 0.000 | 0.020 |
+| SRMR | 0.0220 | 0.0220 | 0.017 |
+
+As in the continuous MI validation, Mplus reports means over imputed-data fit
+statistics, while `lavaan.survey.ordinal()` pools the ordinal sample statistics
+and their design-based covariance matrix before refitting one lavaan model.
+
+### Parameter Agreement
+
+The comparison matched 27 unstandardized parameters between the two outputs.
+
+| Quantity | Value |
+| --- | ---: |
+| Matched parameters | 27 |
+| Maximum absolute estimate difference | 0.0073 |
+| Maximum absolute standard error difference | 0.0032 |
+
+Largest estimate differences:
+
+| Parameter | lavaan.survey.ordinal | Mplus Demo | Mplus - lavaan |
+| --- | ---: | ---: | ---: |
+| `f2 =~ y5` | 0.9117 | 0.9190 | 0.0073 |
+| `f2 =~ y6` | 0.7129 | 0.7180 | 0.0051 |
+| `f1 =~ y3` | 0.8677 | 0.8640 | -0.0037 |
+| `f2 ~~ f2` | 0.7135 | 0.7110 | -0.0025 |
+| `f1 ~~ f2` | 0.2473 | 0.2450 | -0.0023 |
+| `f1 ~~ f1` | 0.6962 | 0.6980 | 0.0018 |
+
+Largest standard-error differences:
+
+| Parameter | lavaan.survey.ordinal | Mplus Demo | Mplus - lavaan |
+| --- | ---: | ---: | ---: |
+| `f1 =~ y3` | 0.0562 | 0.0530 | -0.0032 |
+| `f2 =~ y6` | 0.0701 | 0.0680 | -0.0021 |
+| `f1 =~ y2` | 0.0592 | 0.0610 | 0.0018 |
+| `f1 ~~ f1` | 0.0463 | 0.0470 | 0.0007 |
+| `y5 | t2` | 0.0555 | 0.0550 | -0.0005 |
+
+Threshold estimates are especially close, with most differences far below
+0.001. The largest differences are in a few factor loadings, which is also
+where the ESS4 real-data validation was most sensitive.
+
+### Interpretation
+
+This validation is encouraging for the new ordinal MI implementation. It checks
+the full path from imputed ordered indicators through complex survey correction
+and WLSMV-style ordinal SEM in both programs. Parameter estimates and standard
+errors agree closely, especially for thresholds.
+
+The remaining fit-measure differences are expected to be less diagnostic than
+the parameter comparison because Mplus and `lavaan.survey.ordinal()` summarize
+multiple-imputation fit differently.
+
 ## Files Produced Locally
 
 The scripts produce these generated files, which are intentionally ignored by
@@ -382,6 +504,17 @@ Git:
 - `continuous_mi_mplus_parameters_raw.csv`
 - `continuous_mi_mplus_lavaan_fit_comparison.csv`
 - `continuous_mi_mplus_lavaan_parameter_comparison.csv`
+- `ordinal_mi_imp01.dat` through `ordinal_mi_imp10.dat`
+- `ordinal_mi_implist.dat`
+- `ordinal_mi_complex.inp`
+- `ordinal_mi_complex.out`
+- `ordinal_mi_missing_summary.csv`
+- `ordinal_mi_lavaan_survey_parameters.csv`
+- `ordinal_mi_lavaan_survey_fit.csv`
+- `ordinal_mi_mplus_fit_summary.csv`
+- `ordinal_mi_mplus_parameters_raw.csv`
+- `ordinal_mi_mplus_lavaan_fit_comparison.csv`
+- `ordinal_mi_mplus_lavaan_parameter_comparison.csv`
 
 ## References
 

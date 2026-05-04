@@ -21,6 +21,9 @@ The workflow creates several sets of files:
 3. `continuous_mi_complex.inp` plus ten imputed `.dat` files, a simulated
    continuous CFA dataset with artificial missingness, multiple imputation,
    weights, clusters, and strata.
+4. `ordinal_mi_complex.inp` plus ten imputed `.dat` files, a simulated
+   four-category ordinal CFA dataset with artificial missingness, multiple
+   imputation, weights, clusters, and strata.
 
 The second dataset is the actual comparison target for `lavaan.survey.ordinal()`.
 
@@ -32,6 +35,9 @@ data portal and converted to an R dataset.
 The continuous multiple-imputation workflow is a validation target for the
 original `lavaan.survey()` function's `svyimputationList` path after the
 modernized Rubin-pooling fixes.
+
+The ordinal multiple-imputation workflow is a validation target for
+`lavaan.survey.ordinal()` with imputed ordered indicators.
 
 ## Prepare files and lavaan.survey results
 
@@ -53,6 +59,12 @@ For the continuous multiple-imputation validation, run:
 source("validation/mplus-demo/prepare_continuous_mi_validation_files.R")
 ```
 
+For the ordinal multiple-imputation validation, run:
+
+```r
+source("validation/mplus-demo/prepare_ordinal_mi_validation_files.R")
+```
+
 This writes:
 
 - `ex5.10.dat`
@@ -66,6 +78,11 @@ This writes:
 - `continuous_mi_complex.inp`
 - `continuous_mi_lavaan_survey_parameters.csv`
 - `continuous_mi_lavaan_survey_fit.csv`
+- `ordinal_mi_imp01.dat` through `ordinal_mi_imp10.dat`
+- `ordinal_mi_implist.dat`
+- `ordinal_mi_complex.inp`
+- `ordinal_mi_lavaan_survey_parameters.csv`
+- `ordinal_mi_lavaan_survey_fit.csv`
 
 ## Run Mplus Demo
 
@@ -85,6 +102,12 @@ For the continuous multiple-imputation validation:
 
 ```sh
 mpdemo continuous_mi_complex.inp
+```
+
+For the ordinal multiple-imputation validation:
+
+```sh
+mpdemo ordinal_mi_complex.inp
 ```
 
 You can also run the official Mplus example sanity check:
@@ -113,6 +136,12 @@ For the continuous multiple-imputation validation:
 source("validation/mplus-demo/compare_mplus_continuous_mi_output.R")
 ```
 
+For the ordinal multiple-imputation validation:
+
+```r
+source("validation/mplus-demo/compare_mplus_ordinal_mi_output.R")
+```
+
 The comparison script uses `MplusAutomation` if available:
 
 ```r
@@ -133,7 +162,8 @@ lavaan's additional robust CFI, TLI, and RMSEA are useful sensitivity checks, bu
 Mplus does not print a separate lavaan-style robust fit-index column for WLSMV.
 
 For multiple imputation, Mplus prints means and standard deviations over the
-imputed-data analyses for several fit measures. `lavaan.survey()` instead pools
-sample statistics and their design-based covariance matrix before refitting one
-lavaan model. Parameter estimates should agree closely when both programs use
-the same imputed datasets, but global fit statistics need not be identical.
+imputed-data analyses for several fit measures. `lavaan.survey()` and
+`lavaan.survey.ordinal()` instead pool sample statistics and their design-based
+covariance matrix before refitting one lavaan model. Parameter estimates should
+agree closely when both programs use the same imputed datasets, but global fit
+statistics need not be identical.
