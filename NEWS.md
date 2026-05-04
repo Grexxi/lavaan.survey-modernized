@@ -14,6 +14,8 @@ endorsed by the original author/maintainer.
 * Added support for single-group and multiple-group ordinal models, including
   ordinal measurement invariance models with equality constraints on loadings
   and thresholds.
+* Added initial multiple-imputation support for `lavaan.survey.ordinal()` when
+  the survey design is a `svyimputationList`.
 
 ## Compatibility and bug fixes
 
@@ -37,6 +39,7 @@ endorsed by the original author/maintainer.
 * Added regression tests for ordinal survey CFA, multiple-group ordinal survey
   CFA, and ordinal loading/threshold invariance.
 * Added regression coverage for continuous multiple-imputation survey pooling.
+* Added regression coverage for ordinal multiple-imputation survey pooling.
 * Documented the continuous multiple-imputation survey workflow in the README.
 * Added a continuous multiple-imputation Mplus Demo validation workflow using
   the same ten imputed datasets in Mplus and `lavaan.survey()`.
@@ -47,5 +50,5 @@ endorsed by the original author/maintainer.
 
 * `lavaan.survey.ordinal()` currently requires all observed model variables to
   be ordered.
-* Multiple imputation and mixed continuous/ordinal observed-variable sets are
-  not yet implemented for the ordinal workflow.
+* Mixed continuous/ordinal observed-variable sets are not yet implemented for
+  the ordinal workflow.

@@ -124,6 +124,39 @@ designs with `survey::as.svrepdesign()`. Thresholds and polychoric correlations
 are estimated with sampling weights, and their design-based covariance matrix is
 estimated from the replicate weights.
 
+## Ordinal SEM with multiple imputation
+
+`lavaan.survey.ordinal()` also accepts a survey design whose `data` argument is
+a `mitools::imputationList`. Fit the naive ordinal `lavaan` model on one
+completed dataset, then pass the imputed survey design to
+`lavaan.survey.ordinal()`. Thresholds, polychoric correlations, and their
+design-based covariance matrix are pooled across imputations.
+
+```r
+library(mitools)
+
+imputed_data <- list(dat_imp1, dat_imp2, dat_imp3)
+imp <- imputationList(imputed_data)
+
+des_imp <- svydesign(
+  ids = ~cluster,
+  strata = ~stratum,
+  weights = ~weight,
+  data = imp,
+  nest = TRUE
+)
+
+fit_imp <- cfa(
+  model = model,
+  data = imputed_data[[1]],
+  ordered = items,
+  estimator = "WLSMV"
+)
+
+fit_svy_imp <- lavaan.survey.ordinal(fit_imp, des_imp)
+summary(fit_svy_imp, fit.measures = TRUE, standardized = TRUE)
+```
+
 ## Multiple-group ordinal models
 
 Multiple-group ordinal models are supported when all observed model variables
@@ -165,8 +198,8 @@ summary(fit_scalar_svy, fit.measures = TRUE, standardized = TRUE)
 
 `lavaan.survey.ordinal()` is an initial implementation. It currently supports
 single-group and multiple-group models where all observed model variables are
-ordered. Multiple imputation and mixed continuous/ordinal observed-variable sets
-are not yet implemented for the ordinal workflow.
+ordered. Mixed continuous/ordinal observed-variable sets are not yet implemented
+for the ordinal workflow.
 
 ## Package checks
 
