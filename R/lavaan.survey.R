@@ -74,7 +74,7 @@ lavaan.survey <-
       list(Gamma.g=Gamma.g, sample.cov.g=sample.cov.g, sample.mean.g=sample.mean.g)
     }
     # The data may be a list of multiply imputed datasets
-    if(!any(class(survey.design.g) == "svyimputationList")) {
+    if(!inherits(survey.design.g, "svyimputationList")) {
       # If no imputations, just use usual no. observations and asy variance
       sample.nobs.g <- lavInspect(lavaan.fit, "nobs")[[g]] 
 
@@ -84,9 +84,9 @@ lavaan.survey <-
       # Not only can nobs differ from lavaan.fit, but also per imputation
       sample.nobs.g <- get.sample.nobs(survey.design.g, lavInspect(lavaan.fit, "group"))
       
-      # Retrieve point and variance estimates per imputation, 
-      #    [TODO: this line will not be correct when nobs differs over imputations]
-      stats.list <- lapply(survey.design.g[[1]], get.stats.design, sample.nobs=sample.nobs.g)
+      # Retrieve point and variance estimates per imputation.
+      stats.list <- lapply(survey.design.g$designs, get.stats.design,
+                           sample.nobs.g=sample.nobs.g)
       m  <- length(stats.list) # no. imputation
       
       # Point estimates are average over imputations
@@ -99,8 +99,15 @@ lavaan.survey <-
       
       # Variance estimates depend on within- and between-imputation variance:
       Gamma.within  <- Reduce(`+`, lapply(stats.list, `[[`, 'Gamma.g')) / m
-      Gamma.between <- cov(cbind(mean.df, cov.df))
-      Gamma.g <- Gamma.within + ((m + 1)/m) * Gamma.between
+      if(m > 1L) {
+        Gamma.between <- cov(cbind(mean.df, cov.df))
+      }
+      else {
+        Gamma.between <- matrix(0, nrow=nrow(Gamma.within),
+                                ncol=ncol(Gamma.within))
+      }
+      dimnames(Gamma.between) <- dimnames(Gamma.within)
+      Gamma.g <- Gamma.within + sample.nobs.g * ((m + 1)/m) * Gamma.between
       
       # set stats with multiple imputation point and variance estimates
       stats <- list(Gamma.g=Gamma.g, sample.cov.g=sample.cov.g, sample.mean.g=sample.mean.g)
@@ -137,7 +144,19 @@ lavaan.survey <-
       new.call$NACOV <- Gamma
     }
   }
-  new.fit <- eval(as.call(new.call)) # Run lavaan with the new arguments
+  new.fit <- tryCatch(
+    eval(as.call(new.call), envir=parent.frame()),
+    error=function(e) e
+  )
+  if(inherits(new.fit, "error")) {
+    if(grepl("object .* not found", conditionMessage(new.fit))) {
+      new.call$model <- lavaan::parTable(lavaan.fit)
+      new.fit <- eval(as.call(new.call))
+    }
+    else {
+      stop(new.fit)
+    }
+  }
   
   if(estimator %in% c("WLS", "DWLS")) return(new.fit) # We are done for WLS
 
@@ -404,8 +423,13 @@ get.dwls.weight <- function(Gamma) {
 # In case sample size differs over imputations, takes median over imputations.
 # TODO: Does not work with multiple group yet.
 get.sample.nobs  <- function(svy.imp.design, group=NULL) {
-  nobs.imp <- lapply(svy.imp.design[[1]], function(des) {nrow(des$variables)})
-  return(median(unlist(nobs.imp)))
+  if(!inherits(svy.imp.design, "svyimputationList")) {
+    stop("Expected a svyimputationList object.")
+  }
+  nobs.imp <- vapply(svy.imp.design$designs, function(des) {
+    nrow(des$variables)
+  }, numeric(1))
+  median(nobs.imp)
 }
 
 # Use the pFsum function from the survey package to obtain p value for the 
