@@ -122,7 +122,10 @@ utils::write.csv(
 
 fm <- lavaan::fitMeasures(
   fit_survey,
-  c("chisq.scaled", "df.scaled", "pvalue.scaled",
+  c("chisq", "df", "pvalue",
+    "chisq.scaled", "df.scaled", "pvalue.scaled",
+    "baseline.chisq.scaled", "baseline.df.scaled",
+    "cfi.scaled", "tli.scaled", "rmsea.scaled",
     "cfi.robust", "tli.robust", "rmsea.robust", "srmr")
 )
 
@@ -140,4 +143,3 @@ utils::write.csv(
 
 message("ESS4 validation files written to: ", normalizePath(validation_dir))
 message("Next step: run `/Applications/MplusDemo/mpdemo ess4_range_complex.inp` inside that folder.")
-

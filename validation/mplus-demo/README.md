@@ -92,10 +92,12 @@ install.packages("MplusAutomation")
 It writes:
 
 - `mplus_lavaan_parameter_comparison.csv`
+- `mplus_lavaan_fit_comparison.csv`
 - `mplus_complex_parameters_raw.csv`
 - `mplus_complex_fit_summary.csv`
 
 Do not expect exact equality. The main target is close agreement in loadings,
-thresholds, factor variances/covariances, and the overall pattern of fit. Robust
-standard errors and scaled test statistics can differ because the two
-implementations use different internal corrections and weight scaling details.
+thresholds, factor variances/covariances, and the overall pattern of fit. For
+WLSMV, compare the Mplus fit block primarily with lavaan's scaled fit measures.
+lavaan's additional robust CFI, TLI, and RMSEA are useful sensitivity checks, but
+Mplus does not print a separate lavaan-style robust fit-index column for WLSMV.

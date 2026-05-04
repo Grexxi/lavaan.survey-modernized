@@ -18,9 +18,56 @@ if (!requireNamespace("MplusAutomation", quietly = TRUE)) {
 model <- MplusAutomation::readModels(out_file, quiet = TRUE)
 
 if (!is.null(model$summaries)) {
+  mplus_summary <- as.data.frame(model$summaries)
   utils::write.csv(
-    as.data.frame(model$summaries),
+    mplus_summary,
     file = file.path(validation_dir, "ess4_mplus_fit_summary.csv"),
+    row.names = FALSE
+  )
+
+  lavaan_fit <- utils::read.csv(
+    file.path(validation_dir, "ess4_lavaan_survey_fit.csv"),
+    stringsAsFactors = FALSE
+  )
+  get_lavaan_fit <- function(measure) {
+    value <- lavaan_fit$value[lavaan_fit$measure == measure]
+    if (length(value) == 0L) NA_real_ else value[[1L]]
+  }
+
+  fit_comparison <- data.frame(
+    measure = c("chi_square", "df", "p_value", "cfi", "tli", "rmsea", "srmr"),
+    lavaan_scaled = c(
+      get_lavaan_fit("chisq.scaled"),
+      get_lavaan_fit("df.scaled"),
+      get_lavaan_fit("pvalue.scaled"),
+      get_lavaan_fit("cfi.scaled"),
+      get_lavaan_fit("tli.scaled"),
+      get_lavaan_fit("rmsea.scaled"),
+      get_lavaan_fit("srmr")
+    ),
+    lavaan_robust = c(
+      NA_real_,
+      NA_real_,
+      NA_real_,
+      get_lavaan_fit("cfi.robust"),
+      get_lavaan_fit("tli.robust"),
+      get_lavaan_fit("rmsea.robust"),
+      get_lavaan_fit("srmr")
+    ),
+    mplus_wlsmv = c(
+      mplus_summary$ChiSqM_Value[1],
+      mplus_summary$ChiSqM_DF[1],
+      mplus_summary$ChiSqM_PValue[1],
+      mplus_summary$CFI[1],
+      mplus_summary$TLI[1],
+      mplus_summary$RMSEA_Estimate[1],
+      mplus_summary$SRMR[1]
+    )
+  )
+
+  utils::write.csv(
+    fit_comparison,
+    file = file.path(validation_dir, "ess4_mplus_lavaan_fit_comparison.csv"),
     row.names = FALSE
   )
 }
@@ -111,4 +158,5 @@ utils::write.csv(
 
 message("ESS4 comparison written to: ",
         normalizePath(file.path(validation_dir, "ess4_mplus_lavaan_parameter_comparison.csv")))
-
+message("ESS4 fit comparison written to: ",
+        normalizePath(file.path(validation_dir, "ess4_mplus_lavaan_fit_comparison.csv")))

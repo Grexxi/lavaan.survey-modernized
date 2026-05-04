@@ -150,4 +150,6 @@ R CMD check lavaan.survey_1.2.0.tar.gz
 The repository includes a small Mplus Demo validation workflow under
 `validation/mplus-demo/`. It creates a six-indicator ordinal survey CFA that fits
 within the Mplus Demo limits and compares the resulting Mplus output with
-`lavaan.survey.ordinal()` results.
+`lavaan.survey.ordinal()` results. For WLSMV, the Mplus fit block is compared
+primarily with lavaan's scaled fit measures; lavaan's additional robust CFI, TLI,
+and RMSEA are treated as sensitivity checks rather than direct Mplus targets.

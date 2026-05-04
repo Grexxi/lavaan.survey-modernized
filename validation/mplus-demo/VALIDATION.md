@@ -3,6 +3,20 @@
 This note records a first cross-software validation run for
 `lavaan.survey.ordinal()` against Mplus Demo 9.
 
+## Note on Scaled and Robust Fit Measures
+
+Mplus WLSMV output reports one adjusted model-fit block for the WLSMV estimator.
+It does not print a second lavaan-style column of `robust` CFI, TLI, and RMSEA.
+For this validation, the closest direct comparison is therefore Mplus WLSMV
+against lavaan's `*.scaled` fit measures. lavaan's `*.robust` measures are shown
+as an additional sensitivity check, not as the primary Mplus target.
+
+Mplus marks WLSMV chi-square values with a note that they cannot be used for
+ordinary chi-square difference testing and points WLSMV users to `DIFFTEST` for
+nested model comparisons. The Mplus authors also describe the WLSMV/ULSMV/MLMV
+second-order chi-square correction as a scaled and shifted approximation to a
+chi-square distribution.
+
 ## Validation 1: Simulated Ordinal Survey CFA
 
 ### Scope
@@ -43,15 +57,15 @@ source("validation/mplus-demo/compare_mplus_output.R")
 
 ### Fit Measures
 
-| Measure | lavaan.survey.ordinal | Mplus Demo |
-| --- | ---: | ---: |
-| Scaled chi-square | 8.481 | 7.925 |
-| df | 8 | 8 |
-| p-value | 0.388 | 0.441 |
-| CFI | 1.000 | 1.000 |
-| TLI | 1.004 | 1.000 |
-| RMSEA | 0.000 | 0.000 |
-| SRMR | 0.0206 | 0.015 |
+| Measure | lavaan scaled | lavaan robust | Mplus WLSMV |
+| --- | ---: | ---: | ---: |
+| Adjusted chi-square | 8.481 | -- | 7.925 |
+| df | 8 | -- | 8 |
+| p-value | 0.388 | -- | 0.441 |
+| CFI | 1.000 | 1.000 | 1.000 |
+| TLI | 1.000 | 1.004 | 1.000 |
+| RMSEA | 0.010 | 0.000 | 0.000 |
+| SRMR | 0.0206 | 0.0206 | 0.015 |
 
 ### Parameter Agreement
 
@@ -159,15 +173,15 @@ source("validation/mplus-demo/compare_mplus_ess4_output.R")
 
 ### Fit Measures
 
-| Measure | lavaan.survey.ordinal | Mplus Demo |
-| --- | ---: | ---: |
-| Scaled chi-square | 223.100 | 290.691 |
-| df | 9 | 9 |
-| p-value | 0.000 | 0.000 |
-| CFI | 0.854 | 0.923 |
-| TLI | 0.756 | 0.872 |
-| RMSEA | 0.184 | 0.119 |
-| SRMR | 0.0657 | 0.050 |
+| Measure | lavaan scaled | lavaan robust | Mplus WLSMV |
+| --- | ---: | ---: | ---: |
+| Adjusted chi-square | 223.100 | -- | 290.691 |
+| df | 9 | -- | 9 |
+| p-value | 0.000 | -- | 0.000 |
+| CFI | 0.920 | 0.854 | 0.923 |
+| TLI | 0.866 | 0.756 | 0.872 |
+| RMSEA | 0.104 | 0.184 | 0.119 |
+| SRMR | 0.0657 | 0.0657 | 0.050 |
 
 ### Parameter Agreement
 
@@ -200,14 +214,21 @@ in a few factor loadings for highly skewed ESS items.
 The ESS4 GB comparison is a harder real-data check than the simulated
 validation. It uses genuine survey weights, PSUs, and strata from the package
 example data, with strongly skewed welfare-attitude items. Parameter estimates
-are still in the same range, and thresholds are almost identical, but the robust
-global fit measures differ more than in the simulation.
+are still in the same range, and thresholds are almost identical.
+
+The global fit measures are more nuanced. The Mplus WLSMV CFI and TLI align very
+closely with lavaan's `scaled` CFI and TLI, while they differ from lavaan's
+additional `robust` CFI and TLI. RMSEA is also much closer to lavaan's scaled
+RMSEA than to lavaan's robust RMSEA, although the Mplus value remains somewhat
+higher. The adjusted chi-square itself is more sensitive to implementation
+details such as weight scaling, the baseline-model correction, and the
+second-order WLSMV test statistic correction.
 
 This suggests that the ordinal implementation is reproducing the core
-threshold/polychoric part of the Mplus workflow well, while robust fit-test
-corrections and weight-scaling details can be more sensitive in real survey
-data. More real-data comparisons are still useful before treating the ordinal
-extension as production-grade.
+threshold/polychoric part of the Mplus workflow well. The earlier-looking
+fit-index discrepancy is mostly an apples-to-oranges comparison between Mplus
+WLSMV and lavaan's extra robust fit-index column. More real-data comparisons are
+still useful before treating the ordinal extension as production-grade.
 
 ## Files Produced Locally
 
@@ -219,14 +240,26 @@ Git:
 - `ordinal_survey_complex.out`
 - `lavaan_survey_complex_parameters.csv`
 - `lavaan_survey_complex_fit.csv`
+- `mplus_lavaan_fit_comparison.csv`
 - `mplus_complex_parameters_raw.csv`
 - `mplus_complex_fit_summary.csv`
 - `mplus_lavaan_parameter_comparison.csv`
 - `ess4_range_complex.dat`
 - `ess4_range_complex.inp`
 - `ess4_range_complex.out`
+- `ess4_collapsed_category_counts.csv`
 - `ess4_lavaan_survey_parameters.csv`
 - `ess4_lavaan_survey_fit.csv`
+- `ess4_mplus_lavaan_fit_comparison.csv`
 - `ess4_mplus_parameters_raw.csv`
 - `ess4_mplus_fit_summary.csv`
 - `ess4_mplus_lavaan_parameter_comparison.csv`
+
+## References
+
+- Mplus User's Guide examples show WLSMV output with a single fit block and the
+  WLSMV chi-square difference-testing note:
+  https://www.statmodel.com/usersguide/chap3/ex3.14.html
+- Asparouhov and Muthen's note on the WLSMV/ULSMV/MLMV second-order
+  chi-square correction:
+  https://www.statmodel.com/download/WLSMV_new_chi21.pdf
