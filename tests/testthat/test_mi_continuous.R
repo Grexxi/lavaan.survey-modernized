@@ -67,6 +67,16 @@ pool_continuous_mi_sample_stats <- function(designs, ov.names, sample.nobs) {
   list(sample.cov=sample.cov, sample.mean=sample.mean, Gamma=Gamma)
 }
 
+fit_continuous_mi_lavaan_model <- function(data) {
+  local_model <- "f =~ y1 + y2 + y3"
+  lavaan::cfa(
+    model=local_model,
+    data=data,
+    estimator="MLM",
+    meanstructure=TRUE
+  )
+}
+
 test_that("continuous MI survey models pool sample statistics with Rubin scaling", {
   skip_if_not_installed("mitools")
 
@@ -78,13 +88,7 @@ test_that("continuous MI survey models pool sample statistics with Rubin scaling
     data=imputation_list
   )
 
-  model <- "f =~ y1 + y2 + y3"
-  fit_naive <- lavaan::cfa(
-    model=model,
-    data=imputed_data[[1]],
-    estimator="MLM",
-    meanstructure=TRUE
-  )
+  fit_naive <- fit_continuous_mi_lavaan_model(imputed_data[[1]])
 
   fit_mi <- lavaan.survey(
     lavaan.fit=fit_naive,

@@ -51,6 +51,37 @@ fit_svy <- lavaan.survey(fit, des)
 summary(fit_svy, fit.measures = TRUE, standardized = TRUE)
 ```
 
+## Continuous SEM with multiple imputation
+
+For continuous models, `lavaan.survey()` also supports survey designs whose
+`data` argument is a `mitools::imputationList`. Fit the naive `lavaan` model on
+one completed dataset, then pass the imputed survey design to `lavaan.survey()`.
+The sample means, covariances, and their design-based covariance matrix are
+pooled across imputations using Rubin-style pooling.
+
+```r
+library(mitools)
+
+imputed_data <- list(dat_imp1, dat_imp2, dat_imp3)
+imp <- imputationList(imputed_data)
+
+des_imp <- svydesign(
+  ids = ~psu,
+  strata = ~stratum,
+  weights = ~weight,
+  data = imp,
+  nest = TRUE
+)
+
+fit_imp <- cfa(model, data = imputed_data[[1]], estimator = "MLM")
+fit_svy_imp <- lavaan.survey(fit_imp, des_imp)
+summary(fit_svy_imp, fit.measures = TRUE, standardized = TRUE)
+```
+
+As with any survey-weighted MI analysis, the imputation model should be chosen
+with care and should reflect important design information such as weights,
+clusters, and strata.
+
 ## Ordinal SEM with complex survey designs
 
 For ordinal indicators, fit the naive ordinal model first with `lavaan`, then

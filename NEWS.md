@@ -37,6 +37,7 @@ endorsed by the original author/maintainer.
 * Added regression tests for ordinal survey CFA, multiple-group ordinal survey
   CFA, and ordinal loading/threshold invariance.
 * Added regression coverage for continuous multiple-imputation survey pooling.
+* Documented the continuous multiple-imputation survey workflow in the README.
 * Updated legacy numerical tolerances for current `lavaan` and `survey`
   versions.
 
