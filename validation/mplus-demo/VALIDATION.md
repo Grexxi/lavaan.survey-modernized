@@ -3,7 +3,9 @@
 This note records a first cross-software validation run for
 `lavaan.survey.ordinal()` against Mplus Demo 9.
 
-## Scope
+## Validation 1: Simulated Ordinal Survey CFA
+
+### Scope
 
 The Mplus Demo version is limited to six dependent variables. The validation
 therefore uses a compact ordinal survey CFA model with six four-category
@@ -19,7 +21,7 @@ The generated dataset has 600 observations, survey weights, 60 clusters, and 6
 strata. Both Mplus and `lavaan.survey.ordinal()` use WLSMV/DWLS-style estimation
 for ordered categorical indicators with a complex survey correction.
 
-## Commands
+### Commands
 
 Prepare the validation files and `lavaan.survey.ordinal()` results:
 
@@ -39,7 +41,7 @@ Parse and compare the output:
 source("validation/mplus-demo/compare_mplus_output.R")
 ```
 
-## Fit Measures
+### Fit Measures
 
 | Measure | lavaan.survey.ordinal | Mplus Demo |
 | --- | ---: | ---: |
@@ -51,7 +53,7 @@ source("validation/mplus-demo/compare_mplus_output.R")
 | RMSEA | 0.000 | 0.000 |
 | SRMR | 0.0206 | 0.015 |
 
-## Parameter Agreement
+### Parameter Agreement
 
 The comparison matched 27 parameters between the two outputs.
 
@@ -77,7 +79,7 @@ Largest estimate differences:
 Threshold estimates agreed especially closely; most differences are at the
 third or fourth decimal place.
 
-## Interpretation
+### Interpretation
 
 This first validation run is encouraging. The core parameter estimates,
 thresholds, and standard errors from `lavaan.survey.ordinal()` closely reproduce
@@ -88,6 +90,124 @@ Exact equality should not be expected. Mplus and `lavaan` differ in internal
 rounding, weight scaling, robust test statistic corrections, and output
 precision. The goal of this validation is therefore numerical agreement within a
 small tolerance, not bit-for-bit identity.
+
+## Validation 2: ESS4 GB Ordinal Survey CFA
+
+### Data Source
+
+The `ess4.gb` dataset is bundled with `lavaan.survey`. Its package
+documentation describes it as European Social Survey (ESS) round 4 data from the
+2008 United Kingdom sample, downloaded from the ESS data portal and converted to
+an R dataset. The variables used here measure attitudes about government
+responsibility for welfare-state tasks and were used in the Roosma, Gelissen,
+and van Oorschot (2013) welfare-state-attitudes application.
+
+The original six selected ESS variables use 0-10 response scales. Directly
+using all 11 categories produced sparse-category numerical instability in the
+replicate-weight polychoric correlations. For this Mplus Demo validation, the
+six original variables are therefore collapsed to four ordered categories:
+
+```text
+0-4   -> 1
+5-6   -> 2
+7-8   -> 3
+9-10  -> 4
+```
+
+The variables and one-factor structure are unchanged; only the response scale is
+collapsed for numerical stability.
+
+### Scope
+
+The ESS4 GB validation uses 2,194 complete cases, ESS design weights, PSUs, and
+strata:
+
+```text
+range =~ gvjbevn + gvhlthc + gvslvol + gvslvue + gvcldcr + gvpdlwk
+```
+
+The corresponding Mplus input uses:
+
+```text
+WEIGHT IS dweight;
+CLUSTER IS psu;
+STRATIFICATION IS strat;
+TYPE = COMPLEX;
+ESTIMATOR = WLSMV;
+PARAMETERIZATION = DELTA;
+```
+
+### Commands
+
+Prepare the ESS4 validation files and `lavaan.survey.ordinal()` results:
+
+```r
+source("validation/mplus-demo/prepare_ess4_validation_files.R")
+```
+
+Run Mplus Demo from `validation/mplus-demo`:
+
+```sh
+/Applications/MplusDemo/mpdemo ess4_range_complex.inp
+```
+
+Parse and compare the output:
+
+```r
+source("validation/mplus-demo/compare_mplus_ess4_output.R")
+```
+
+### Fit Measures
+
+| Measure | lavaan.survey.ordinal | Mplus Demo |
+| --- | ---: | ---: |
+| Scaled chi-square | 223.100 | 290.691 |
+| df | 9 | 9 |
+| p-value | 0.000 | 0.000 |
+| CFI | 0.854 | 0.923 |
+| TLI | 0.756 | 0.872 |
+| RMSEA | 0.184 | 0.119 |
+| SRMR | 0.0657 | 0.050 |
+
+### Parameter Agreement
+
+The comparison matched 25 parameters between the two outputs.
+
+| Quantity | Value |
+| --- | ---: |
+| Matched parameters | 25 |
+| Maximum absolute estimate difference | 0.0615 |
+| Maximum absolute standard error difference | 0.0089 |
+
+Largest estimate differences:
+
+| Parameter | lavaan.survey.ordinal | Mplus Demo | Mplus - lavaan |
+| --- | ---: | ---: | ---: |
+| `range =~ gvhlthc` | 1.2015 | 1.2630 | 0.0615 |
+| `range =~ gvslvol` | 1.2687 | 1.3050 | 0.0363 |
+| `range =~ gvcldcr` | 1.1754 | 1.1910 | 0.0156 |
+| `range =~ gvslvue` | 1.0249 | 1.0390 | 0.0141 |
+| `range ~~ range` | 0.3470 | 0.3440 | -0.0030 |
+| `range =~ gvpdlwk` | 1.1533 | 1.1560 | 0.0027 |
+| `gvhlthc | t1` | -2.0825 | -2.0820 | 0.0005 |
+| `gvpdlwk | t3` | 0.6504 | 0.6500 | -0.0004 |
+
+Threshold estimates again agree very closely. The larger differences are mainly
+in a few factor loadings for highly skewed ESS items.
+
+### Interpretation
+
+The ESS4 GB comparison is a harder real-data check than the simulated
+validation. It uses genuine survey weights, PSUs, and strata from the package
+example data, with strongly skewed welfare-attitude items. Parameter estimates
+are still in the same range, and thresholds are almost identical, but the robust
+global fit measures differ more than in the simulation.
+
+This suggests that the ordinal implementation is reproducing the core
+threshold/polychoric part of the Mplus workflow well, while robust fit-test
+corrections and weight-scaling details can be more sensitive in real survey
+data. More real-data comparisons are still useful before treating the ordinal
+extension as production-grade.
 
 ## Files Produced Locally
 
@@ -102,4 +222,11 @@ Git:
 - `mplus_complex_parameters_raw.csv`
 - `mplus_complex_fit_summary.csv`
 - `mplus_lavaan_parameter_comparison.csv`
-
+- `ess4_range_complex.dat`
+- `ess4_range_complex.inp`
+- `ess4_range_complex.out`
+- `ess4_lavaan_survey_parameters.csv`
+- `ess4_lavaan_survey_fit.csv`
+- `ess4_mplus_parameters_raw.csv`
+- `ess4_mplus_fit_summary.csv`
+- `ess4_mplus_lavaan_parameter_comparison.csv`

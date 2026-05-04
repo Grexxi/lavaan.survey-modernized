@@ -21,12 +21,23 @@ The workflow creates two sets of files:
 
 The second dataset is the actual comparison target for `lavaan.survey.ordinal()`.
 
+The folder also contains an ESS4 GB validation workflow. The `ess4.gb` dataset
+is bundled with `lavaan.survey`; its documentation states that it comes from the
+European Social Survey round 4 United Kingdom sample, downloaded from the ESS
+data portal and converted to an R dataset.
+
 ## Prepare files and lavaan.survey results
 
 From the package root, run:
 
 ```r
 source("validation/mplus-demo/prepare_validation_files.R")
+```
+
+For the ESS4 GB validation, run:
+
+```r
+source("validation/mplus-demo/prepare_ess4_validation_files.R")
 ```
 
 This writes:
@@ -46,6 +57,12 @@ If `mpdemo` is on your `PATH`, run from this folder:
 mpdemo ordinal_survey_complex.inp
 ```
 
+For the ESS4 GB validation:
+
+```sh
+mpdemo ess4_range_complex.inp
+```
+
 You can also run the official Mplus example sanity check:
 
 ```sh
@@ -58,6 +75,12 @@ After Mplus has created `ordinal_survey_complex.out`, run from the package root:
 
 ```r
 source("validation/mplus-demo/compare_mplus_output.R")
+```
+
+For the ESS4 GB validation:
+
+```r
+source("validation/mplus-demo/compare_mplus_ess4_output.R")
 ```
 
 The comparison script uses `MplusAutomation` if available:
@@ -76,4 +99,3 @@ Do not expect exact equality. The main target is close agreement in loadings,
 thresholds, factor variances/covariances, and the overall pattern of fit. Robust
 standard errors and scaled test statistics can differ because the two
 implementations use different internal corrections and weight scaling details.
-
