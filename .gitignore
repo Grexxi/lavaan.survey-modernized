@@ -6,3 +6,7 @@
 *.tar.gz
 *.tgz
 shortcode.R
+validation/mplus-demo/*.csv
+validation/mplus-demo/*.dat
+validation/mplus-demo/*.inp
+validation/mplus-demo/*.out

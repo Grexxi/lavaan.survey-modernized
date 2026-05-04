@@ -144,3 +144,10 @@ The package can be checked with:
 ```sh
 R CMD check lavaan.survey_1.2.0.tar.gz
 ```
+
+## Cross-software validation
+
+The repository includes a small Mplus Demo validation workflow under
+`validation/mplus-demo/`. It creates a six-indicator ordinal survey CFA that fits
+within the Mplus Demo limits and compares the resulting Mplus output with
+`lavaan.survey.ordinal()` results.
