@@ -22,6 +22,13 @@ endorsed by the original author/maintainer.
 * Fixed Yuan-Bentler residual handling for multiple-group models.
 * Updated `DWLS` handling so that diagonal WLS weights and `NACOV` are passed
   in a form compatible with current `lavaan`.
+* Fixed continuous-model multiple imputation pooling so that the
+  between-imputation component of the sample-statistic covariance matrix is
+  scaled consistently with lavaan's `NACOV = n * Var(sample statistics)`
+  convention.
+* Made continuous refits work from function-local model objects and fall back
+  to the fitted model's parameter table when the original model object is no
+  longer available.
 * Made ordinal refits independent of local model object names by refitting from
   the fitted model's parameter table.
 
@@ -29,6 +36,7 @@ endorsed by the original author/maintainer.
 
 * Added regression tests for ordinal survey CFA, multiple-group ordinal survey
   CFA, and ordinal loading/threshold invariance.
+* Added regression coverage for continuous multiple-imputation survey pooling.
 * Updated legacy numerical tolerances for current `lavaan` and `survey`
   versions.
 
