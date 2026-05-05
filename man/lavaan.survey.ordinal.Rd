@@ -47,8 +47,8 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
   correlations, and their design-based covariance matrix are pooled across
   imputations. This also applies to multiple-group ordinal models, including
   loading and threshold invariance constraints. Mixed continuous/ordinal
-  observed-variable sets have an experimental single-group proof-of-concept
-  path; mixed multiple-group, multiple-imputation, and Mplus validation
+  observed-variable sets have an experimental single-group and multiple-group
+  proof-of-concept path; mixed multiple-imputation and Mplus validation
   workflows still need follow-up testing.
 }
 \value{

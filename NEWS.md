@@ -17,8 +17,9 @@ endorsed by the original author/maintainer.
 * Added initial multiple-imputation support for `lavaan.survey.ordinal()` when
   the survey design is a `svyimputationList`.
 * Added an experimental proof-of-concept path for mixed ordinal/continuous
-  observed variables in `lavaan.survey.ordinal()` single-group models. The
-  mixed path delegates WLS sample-statistic ordering to lavaan.
+  observed variables in `lavaan.survey.ordinal()` single-group and
+  multiple-group models. The mixed path delegates WLS sample-statistic ordering
+  to lavaan.
 
 ## Compatibility and bug fixes
 
@@ -47,6 +48,8 @@ endorsed by the original author/maintainer.
 * Added regression coverage for ordinal multiple-imputation survey pooling.
 * Added regression coverage for multiple-group ordinal multiple-imputation
   models, including loading and threshold invariance constraints.
+* Added regression coverage for mixed ordinal/continuous multiple-group survey
+  CFA, including loading, threshold, and intercept invariance constraints.
 * Documented the continuous multiple-imputation survey workflow in the README.
 * Added a continuous multiple-imputation Mplus Demo validation workflow using
   the same ten imputed datasets in Mplus and `lavaan.survey()`.
@@ -73,5 +76,5 @@ endorsed by the original author/maintainer.
 ## Current limitations
 
 * Mixed continuous/ordinal observed-variable sets are still experimental.
-  Multiple-group, multiple-imputation, and Mplus validation workflows for mixed
-  indicators remain future work.
+  Multiple-imputation and Mplus validation workflows for mixed indicators
+  remain future work.

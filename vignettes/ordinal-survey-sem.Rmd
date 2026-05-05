@@ -216,6 +216,6 @@ and polychoric correlations unstable, especially in multiple-group models.
 
 At this stage, the ordinal extension is best validated for CFA/SEM models where
 all observed model indicators are ordered categorical variables. Mixed
-continuous and ordinal observed variables have an experimental single-group path
-and should be treated as provisional until more tests and external validation
-are added.
+continuous and ordinal observed variables have an experimental single-group and
+multiple-group path and should be treated as provisional until imputation tests
+and external validation are added.
