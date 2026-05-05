@@ -213,8 +213,8 @@ lavaan.survey.ordinal <-
   function(lavaan.fit, survey.design, ordered=NULL,
            estimator=c("WLSMV", "DWLS"),
            rep.type="auto", replicates=NULL,
-           point.wls=c("design", "lavaan"),
-           mi.pooling=c("sample.statistics", "parameters")) {
+           point.wls=c("auto", "lavaan", "design"),
+           mi.pooling=c("auto", "parameters", "sample.statistics")) {
 
   estimator <- match.arg(estimator)
   point.wls <- match.arg(point.wls)
@@ -238,6 +238,7 @@ lavaan.survey.ordinal <-
     stop("Ordered variables are not observed model variables: ",
          paste(setdiff(ordered, ov.names), collapse=", "))
   }
+  all.ordinal <- all(ov.names %in% ordered)
 
   if(inherits(survey.design, "svyimputationList") &&
      all(vapply(survey.design$designs, inherits, logical(1), "svyrep.design"))) {
@@ -265,9 +266,16 @@ lavaan.survey.ordinal <-
   if(!is.null(group.var) && !group.var %in% names(data)) {
     stop("The survey design is missing the lavaan group variable: ", group.var)
   }
+  is.mi.design <- inherits(rep.design, "svyimputationList")
+  if(point.wls == "auto") {
+    point.wls <- if(all.ordinal) "design" else "lavaan"
+  }
+  if(mi.pooling == "auto") {
+    mi.pooling <- if(is.mi.design && !all.ordinal) "parameters" else "sample.statistics"
+  }
 
   if(mi.pooling == "parameters") {
-    if(!inherits(rep.design, "svyimputationList")) {
+    if(!is.mi.design) {
       stop("mi.pooling = \"parameters\" requires a svyimputationList survey design.")
     }
     return(pool.ordinal.mi.parameters(
@@ -277,7 +285,7 @@ lavaan.survey.ordinal <-
     ))
   }
 
-  if(inherits(rep.design, "svyimputationList")) {
+  if(is.mi.design) {
     ordinal.stats <- lapply(rep.design$designs, get.ordinal.survey.stats,
                             ov.names=ov.names, ordered=ordered,
                             ngroups=ngroups, group.var=group.var,

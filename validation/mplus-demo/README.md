@@ -190,11 +190,13 @@ source("validation/mplus-demo/compare_mplus_mixed_group_mi_output.R")
 
 This workflow is intentionally diagnostic. It confirms that Mplus Demo can fit
 the mixed, grouped, imputed, complex-survey CFA model and compares two
-`lavaan.survey.ordinal()` algorithms. The default MI path pools sample
-statistics and their design-based covariance matrix before refitting one model.
-The experimental `point.wls = "lavaan", mi.pooling = "parameters"` path fits
-each imputed dataset with lavaan sampling weights and pools model parameters
-with Rubin's rules. The latter is much closer to Mplus `TYPE = IMPUTATION`.
+`lavaan.survey.ordinal()` algorithms. For all-ordinal MI models, the default
+path pools sample statistics and their design-based covariance matrix before
+refitting one model. For mixed ordinal/continuous MI models, the default
+`auto` settings use the Mplus-nearer parameter-pooling path: each imputed
+dataset is fitted with lavaan sampling weights, and model parameters are pooled
+with Rubin's rules. The original sample-statistic algorithm remains available
+with `point.wls = "design", mi.pooling = "sample.statistics"`.
 
 ## Interpreting Comparisons
 
@@ -207,8 +209,8 @@ checks, but Mplus does not print a separate lavaan-style robust fit-index column
 for WLSMV.
 
 For multiple imputation, Mplus prints means and standard deviations over the
-imputed-data analyses for several fit measures. The default
-`lavaan.survey.ordinal()` MI algorithm pools sample statistics first; the
-experimental parameter-pooling algorithm mirrors Mplus's imputation layer more
-closely. Parameter estimates should therefore be the primary validation target
-for MI workflows, with fit measures treated as a useful diagnostic summary.
+imputed-data analyses for several fit measures. The mixed-indicator default now
+mirrors Mplus's imputation layer more closely through Rubin parameter pooling,
+while the sample-statistic algorithm remains a sensitivity check. Parameter
+estimates should therefore be the primary validation target for MI workflows,
+with fit measures treated as a useful diagnostic summary.

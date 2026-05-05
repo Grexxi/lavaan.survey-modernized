@@ -150,7 +150,9 @@ test_that("mixed ordinal and continuous survey CFA works", {
   fit_survey <- suppressWarnings(lavaan.survey.ordinal(
     lavaan.fit=fit,
     survey.design=rep_design,
-    estimator="WLSMV"
+    estimator="WLSMV",
+    point.wls="design",
+    mi.pooling="sample.statistics"
   ))
 
   pe <- lavaan::parameterEstimates(fit_survey)
@@ -173,7 +175,9 @@ test_that("mixed ordinal and continuous survey CFA works for multiple groups", {
   fit_survey <- suppressWarnings(lavaan.survey.ordinal(
     lavaan.fit=fit,
     survey.design=rep_design,
-    estimator="WLSMV"
+    estimator="WLSMV",
+    point.wls="design",
+    mi.pooling="sample.statistics"
   ))
 
   pe <- lavaan::parameterEstimates(fit_survey)
@@ -308,7 +312,9 @@ test_that("mixed MI survey models pool thresholds, means, and correlations", {
   fit_survey <- suppressWarnings(lavaan.survey.ordinal(
     lavaan.fit=fit,
     survey.design=rep_design,
-    estimator="WLSMV"
+    estimator="WLSMV",
+    point.wls="design",
+    mi.pooling="sample.statistics"
   ))
 
   per_imputation <- lapply(
@@ -372,7 +378,9 @@ test_that("mixed multiple-group MI models preserve invariance constraints", {
   fit_survey <- suppressWarnings(lavaan.survey.ordinal(
     lavaan.fit=fit,
     survey.design=rep_design,
-    estimator="WLSMV"
+    estimator="WLSMV",
+    point.wls="design",
+    mi.pooling="sample.statistics"
   ))
 
   per_imputation <- lapply(
@@ -507,6 +515,37 @@ test_that("mixed single-group MI models support Rubin parameter pooling", {
   expect_true(all(is.finite(coef(fit_pooled))))
   expect_true(all(diag(vcov(fit_pooled)) > 0))
   expect_true(all(is.finite(fit_pooled$fit.measures)))
+})
+
+test_that("mixed MI defaults to the Mplus-nearer parameter-pooling path", {
+  skip_if_not_installed("mitools")
+
+  imputed_data <- make_mixed_indicator_mi_data()
+  imputation_list <- mitools::imputationList(imputed_data)
+  design <- survey::svydesign(
+    ids=~cluster,
+    strata=~stratum,
+    weights=~weight,
+    data=imputation_list,
+    nest=TRUE
+  )
+  rep_design <- survey::as.svrepdesign(
+    design,
+    type="bootstrap",
+    replicates=4
+  )
+  fit <- fit_mixed_indicator_model(imputed_data[[1]])
+
+  fit_default <- suppressWarnings(lavaan.survey.ordinal(
+    lavaan.fit=fit,
+    survey.design=rep_design,
+    estimator="WLSMV"
+  ))
+
+  expect_s3_class(fit_default, "lavaan.survey.mi")
+  expect_equal(fit_default$point.wls, "lavaan")
+  expect_equal(fit_default$mi.pooling, "parameters")
+  expect_true(all(is.finite(coef(fit_default))))
 })
 
 test_that("mixed multiple-group MI models support Rubin parameter pooling", {

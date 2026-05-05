@@ -215,11 +215,14 @@ single-group and multiple-group models where all observed model variables are
 ordered. Mixed continuous/ordinal observed-variable sets have an experimental
 single-group and multiple-group proof-of-concept path, including multiple
 imputation. The mixed multiple-group MI path now has an Mplus Demo diagnostic
-workflow and two algorithms: the default pooled-statistic approach and an
-experimental Mplus-nearer parameter-pooling approach via
-`point.wls = "lavaan", mi.pooling = "parameters"`. This path should still be
-treated as experimental, but the parameter-pooling diagnostic is now much closer
-to Mplus `TYPE = IMPUTATION` for the hardest mixed case.
+workflow and two algorithms: the Mplus-nearer parameter-pooling approach and
+the original pooled-statistic approach. For mixed MI models, the Mplus-nearer
+path is the default via `point.wls = "auto"` and `mi.pooling = "auto"`; the
+original pooled-statistic algorithm remains available with
+`point.wls = "design", mi.pooling = "sample.statistics"` for sensitivity
+checks. This path should still be treated as experimental, but the
+parameter-pooling diagnostic is now much closer to Mplus `TYPE = IMPUTATION` for
+the hardest mixed case.
 
 ## Package checks
 

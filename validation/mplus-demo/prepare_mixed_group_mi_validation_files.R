@@ -190,7 +190,9 @@ fit_naive <- lavaan::cfa(
 fit_survey <- lavaan.survey.ordinal(
   lavaan.fit = fit_naive,
   survey.design = design,
-  estimator = "WLSMV"
+  estimator = "WLSMV",
+  point.wls = "design",
+  mi.pooling = "sample.statistics"
 )
 
 fit_survey_parameter_pooling <- lavaan.survey.ordinal(

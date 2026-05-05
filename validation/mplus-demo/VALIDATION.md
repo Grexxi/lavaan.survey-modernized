@@ -802,12 +802,11 @@ multiple-group MI validation.
 
 The mixed MI workflow now writes both lavaan algorithms:
 
-- `sample_statistics`: the default `lavaan.survey.ordinal()` approach, pooling
-  WLS sample statistics and their design-based covariance matrix before one
-  refit.
-- `parameter_pooling`: the experimental Mplus-nearer path, using
-  `point.wls = "lavaan", mi.pooling = "parameters"` to fit each imputation with
-  lavaan sampling weights and pool parameters with Rubin's rules.
+- `parameter_pooling`: the Mplus-nearer mixed-MI default under the `auto`
+  settings, fitting each imputation with lavaan sampling weights and pooling
+  parameters with Rubin's rules.
+- `sample_statistics`: the original sensitivity path, pooling WLS sample
+  statistics and their design-based covariance matrix before one refit.
 
 | Measure | lavaan sample-stat scaled | lavaan parameter-pooling mean | Mplus WLSMV imputation mean |
 | --- | ---: | ---: | ---: |

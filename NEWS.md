@@ -26,6 +26,9 @@ endorsed by the original author/maintainer.
   pooling to per-imputation model parameters and covariance matrices. With
   `point.wls = "lavaan"`, the parameter-pooling path analyzes each imputed
   dataset with lavaan sampling weights, giving a Mplus-nearer diagnostic mode.
+  The `auto` defaults use this Mplus-nearer path for mixed
+  ordinal/continuous MI models, while retaining the pooled-statistic default
+  for all-ordinal MI models.
 
 ## Compatibility and bug fixes
 
