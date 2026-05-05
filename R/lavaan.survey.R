@@ -213,7 +213,11 @@ lavaan.survey.ordinal <-
     stop("lavaan.survey.ordinal currently requires all observed model variables to be ordered.")
   }
 
-  if(inherits(survey.design, "svyrep.design")) {
+  if(inherits(survey.design, "svyimputationList") &&
+     all(vapply(survey.design$designs, inherits, logical(1), "svyrep.design"))) {
+    rep.design <- survey.design
+  }
+  else if(inherits(survey.design, "svyrep.design")) {
     rep.design <- survey.design
   }
   else {
@@ -222,7 +226,12 @@ lavaan.survey.ordinal <-
     rep.design <- do.call(survey::as.svrepdesign, rep.args)
   }
 
-  data <- rep.design$variables
+  data <- if(inherits(rep.design, "svyimputationList")) {
+    rep.design$designs[[1]]$variables
+  }
+  else {
+    rep.design$variables
+  }
   if(!all(ov.names %in% names(data))) {
     stop("The survey design is missing observed model variables: ",
          paste(setdiff(ov.names, names(data)), collapse=", "))
@@ -231,6 +240,51 @@ lavaan.survey.ordinal <-
     stop("The survey design is missing the lavaan group variable: ", group.var)
   }
 
+  if(inherits(rep.design, "svyimputationList")) {
+    ordinal.stats <- lapply(rep.design$designs, get.ordinal.survey.stats,
+                            ov.names=ov.names, ordered=ordered,
+                            ngroups=ngroups, group.var=group.var,
+                            group.labels=group.labels)
+    ordinal.stats <- pool.ordinal.mi.stats(ordinal.stats, ngroups=ngroups,
+                                           group.labels=group.labels)
+  }
+  else {
+    ordinal.stats <- get.ordinal.survey.stats(rep.design=rep.design,
+                                              ov.names=ov.names,
+                                              ordered=ordered,
+                                              ngroups=ngroups,
+                                              group.var=group.var,
+                                              group.labels=group.labels)
+  }
+
+  point.stats <- ordinal.stats$point.stats
+  Gamma <- ordinal.stats$Gamma
+  WLS.V <- ordinal.stats$WLS.V
+
+  new.call <- lavInspect(lavaan.fit, "call")
+  new.call$data <- NULL
+  new.call$model <- lavaan::parTable(lavaan.fit)
+  new.call$sample.cov <- point.stats$sample.cov
+  new.call$sample.mean <- point.stats$sample.mean
+  new.call$sample.th <- point.stats$sample.th
+  new.call$sample.nobs <- point.stats$nobs
+  new.call$estimator <- estimator
+  new.call$ordered <- ordered
+  if(!is.null(group.var)) {
+    new.call$group <- NULL
+    new.call$group.label <- group.labels
+  }
+  new.call$sampling.weights <- NULL
+  new.call$WLS.V <- WLS.V
+  new.call$NACOV <- Gamma
+
+  eval(as.call(new.call))
+}
+
+get.ordinal.survey.stats <- function(rep.design, ov.names, ordered,
+                                     ngroups, group.var=NULL,
+                                     group.labels=NULL) {
+  data <- rep.design$variables
   point.weights <- stats::weights(rep.design, type="sampling")
   point.stats <- get.ordinal.stats(data=data, ov.names=ov.names,
                                    ordered=ordered, weights=point.weights,
@@ -256,58 +310,173 @@ lavaan.survey.ordinal <-
     Gamma <- as.matrix(Gamma) * point.stats$nobs
     dimnames(Gamma) <- list(names(point.stats$wls.obs), names(point.stats$wls.obs))
     WLS.V <- get.dwls.weight(Gamma)
+
+    return(list(point.stats=point.stats, Gamma=Gamma, WLS.V=WLS.V))
+  }
+
+  rep.stats <- vector("list", ngroups)
+  names(rep.stats) <- group.labels
+  for(g in seq_len(ngroups)) {
+    rep.stats[[g]] <- matrix(NA_real_, nrow=ncol(rep.weights),
+                             ncol=length(point.stats$wls.obs[[g]]))
+    colnames(rep.stats[[g]]) <- names(point.stats$wls.obs[[g]])
+  }
+
+  for(r in seq_len(ncol(rep.weights))) {
+    rep.wls <- get.ordinal.stats(data=data, ov.names=ov.names,
+                                 ordered=ordered,
+                                 weights=rep.weights[, r],
+                                 group=group.var,
+                                 group.labels=group.labels,
+                                 wls.names=lapply(point.stats$wls.obs, names))$wls.obs
+    for(g in seq_len(ngroups)) rep.stats[[g]][r, ] <- rep.wls[[g]]
+  }
+
+  Gamma <- vector("list", ngroups)
+  WLS.V <- vector("list", ngroups)
+  names(Gamma) <- names(WLS.V) <- group.labels
+  for(g in seq_len(ngroups)) {
+    Gamma[[g]] <- survey::svrVar(rep.stats[[g]], scale=rep.design$scale,
+                                 rscales=rep.design$rscales, mse=rep.design$mse,
+                                 coef=point.stats$wls.obs[[g]])
+    Gamma[[g]] <- as.matrix(Gamma[[g]]) * point.stats$nobs[[g]]
+    dimnames(Gamma[[g]]) <- list(names(point.stats$wls.obs[[g]]),
+                                 names(point.stats$wls.obs[[g]]))
+    WLS.V[[g]] <- get.dwls.weight(Gamma[[g]])
+  }
+
+  list(point.stats=point.stats, Gamma=Gamma, WLS.V=WLS.V)
+}
+
+pool.ordinal.mi.stats <- function(ordinal.stats, ngroups, group.labels=NULL) {
+  if(length(ordinal.stats) == 0L) {
+    stop("At least one imputed ordinal survey design is required.")
+  }
+
+  if(ngroups == 1) {
+    point.stats <- pool.ordinal.mi.point.stats(
+      lapply(ordinal.stats, `[[`, "point.stats")
+    )
+    Gamma <- pool.ordinal.mi.gamma(
+      gamma.list=lapply(ordinal.stats, `[[`, "Gamma"),
+      wls.list=lapply(ordinal.stats, function(x) x$point.stats$wls.obs),
+      nobs.list=vapply(ordinal.stats, function(x) x$point.stats$nobs, numeric(1)),
+      sample.nobs=point.stats$nobs
+    )
+    WLS.V <- get.dwls.weight(Gamma)
+
+    return(list(point.stats=point.stats, Gamma=Gamma, WLS.V=WLS.V))
+  }
+
+  point.stats <- pool.ordinal.mi.point.stats.by.group(
+    lapply(ordinal.stats, `[[`, "point.stats"),
+    group.labels=group.labels
+  )
+  Gamma <- WLS.V <- vector("list", ngroups)
+  names(Gamma) <- names(WLS.V) <- group.labels
+  for(g in seq_len(ngroups)) {
+    Gamma[[g]] <- pool.ordinal.mi.gamma(
+      gamma.list=lapply(ordinal.stats, function(x) x$Gamma[[g]]),
+      wls.list=lapply(ordinal.stats, function(x) x$point.stats$wls.obs[[g]]),
+      nobs.list=vapply(ordinal.stats, function(x) x$point.stats$nobs[[g]], numeric(1)),
+      sample.nobs=point.stats$nobs[[g]]
+    )
+    WLS.V[[g]] <- get.dwls.weight(Gamma[[g]])
+  }
+
+  list(point.stats=point.stats, Gamma=Gamma, WLS.V=WLS.V)
+}
+
+pool.ordinal.mi.point.stats <- function(point.stats.list) {
+  first <- point.stats.list[[1]]
+  sample.th <- average.named.vectors(lapply(point.stats.list, `[[`, "sample.th"))
+  attr(sample.th, "th.idx") <- attr(first$sample.th, "th.idx")
+
+  list(sample.cov=average.matrices(lapply(point.stats.list, `[[`, "sample.cov")),
+       sample.mean=average.named.vectors(lapply(point.stats.list, `[[`, "sample.mean")),
+       sample.th=sample.th,
+       wls.obs=average.named.vectors(lapply(point.stats.list, `[[`, "wls.obs")),
+       nobs=stats::median(vapply(point.stats.list, `[[`, numeric(1), "nobs")))
+}
+
+pool.ordinal.mi.point.stats.by.group <- function(point.stats.list, group.labels) {
+  ngroups <- length(group.labels)
+  first <- point.stats.list[[1]]
+
+  sample.cov <- sample.mean <- sample.th <- wls.obs <- vector("list", ngroups)
+  names(sample.cov) <- names(sample.mean) <- names(sample.th) <-
+    names(wls.obs) <- group.labels
+
+  for(g in seq_len(ngroups)) {
+    sample.cov[[g]] <- average.matrices(
+      lapply(point.stats.list, function(x) x$sample.cov[[g]])
+    )
+    sample.mean[[g]] <- average.named.vectors(
+      lapply(point.stats.list, function(x) x$sample.mean[[g]])
+    )
+    sample.th[[g]] <- average.named.vectors(
+      lapply(point.stats.list, function(x) x$sample.th[[g]])
+    )
+    wls.obs[[g]] <- average.named.vectors(
+      lapply(point.stats.list, function(x) x$wls.obs[[g]])
+    )
+  }
+  attr(sample.th, "th.idx") <- attr(first$sample.th, "th.idx")
+
+  nobs <- vapply(seq_len(ngroups), function(g) {
+    stats::median(vapply(point.stats.list, function(x) x$nobs[[g]], numeric(1)))
+  }, numeric(1))
+  names(nobs) <- group.labels
+
+  list(sample.cov=sample.cov,
+       sample.mean=sample.mean,
+       sample.th=sample.th,
+       wls.obs=wls.obs,
+       nobs=nobs)
+}
+
+pool.ordinal.mi.gamma <- function(gamma.list, wls.list, nobs.list, sample.nobs) {
+  m <- length(gamma.list)
+  ref.names <- names(wls.list[[1]])
+  if(!all(vapply(wls.list, function(x) identical(names(x), ref.names), logical(1)))) {
+    stop("Ordinal sample statistics do not match across imputations.")
+  }
+
+  gamma.list <- Map(function(Gamma, nobs) {
+    Gamma / nobs * sample.nobs
+  }, gamma.list, nobs.list)
+  Gamma.within <- Reduce(`+`, gamma.list) / m
+
+  if(m > 1L) {
+    wls.df <- do.call(rbind, lapply(wls.list, `[`, ref.names))
+    Gamma.between <- stats::cov(wls.df)
   }
   else {
-    rep.stats <- vector("list", ngroups)
-    names(rep.stats) <- group.labels
-    for(g in seq_len(ngroups)) {
-      rep.stats[[g]] <- matrix(NA_real_, nrow=ncol(rep.weights),
-                               ncol=length(point.stats$wls.obs[[g]]))
-      colnames(rep.stats[[g]]) <- names(point.stats$wls.obs[[g]])
-    }
-
-    for(r in seq_len(ncol(rep.weights))) {
-      rep.wls <- get.ordinal.stats(data=data, ov.names=ov.names,
-                                   ordered=ordered,
-                                   weights=rep.weights[, r],
-                                   group=group.var,
-                                   group.labels=group.labels,
-                                   wls.names=lapply(point.stats$wls.obs, names))$wls.obs
-      for(g in seq_len(ngroups)) rep.stats[[g]][r, ] <- rep.wls[[g]]
-    }
-
-    Gamma <- vector("list", ngroups)
-    WLS.V <- vector("list", ngroups)
-    names(Gamma) <- names(WLS.V) <- group.labels
-    for(g in seq_len(ngroups)) {
-      Gamma[[g]] <- survey::svrVar(rep.stats[[g]], scale=rep.design$scale,
-                                   rscales=rep.design$rscales, mse=rep.design$mse,
-                                   coef=point.stats$wls.obs[[g]])
-      Gamma[[g]] <- as.matrix(Gamma[[g]]) * point.stats$nobs[[g]]
-      dimnames(Gamma[[g]]) <- list(names(point.stats$wls.obs[[g]]),
-                                   names(point.stats$wls.obs[[g]]))
-      WLS.V[[g]] <- get.dwls.weight(Gamma[[g]])
-    }
+    Gamma.between <- matrix(0, nrow=nrow(Gamma.within), ncol=ncol(Gamma.within))
   }
+  dimnames(Gamma.between) <- dimnames(Gamma.within)
 
-  new.call <- lavInspect(lavaan.fit, "call")
-  new.call$data <- NULL
-  new.call$model <- lavaan::parTable(lavaan.fit)
-  new.call$sample.cov <- point.stats$sample.cov
-  new.call$sample.mean <- point.stats$sample.mean
-  new.call$sample.th <- point.stats$sample.th
-  new.call$sample.nobs <- point.stats$nobs
-  new.call$estimator <- estimator
-  new.call$ordered <- ordered
-  if(!is.null(group.var)) {
-    new.call$group <- NULL
-    new.call$group.label <- group.labels
+  Gamma.within + sample.nobs * ((m + 1) / m) * Gamma.between
+}
+
+average.named.vectors <- function(x) {
+  ref.names <- names(x[[1]])
+  if(!all(vapply(x, function(v) identical(names(v), ref.names), logical(1)))) {
+    stop("Ordinal sample statistic names do not match across imputations.")
   }
-  new.call$sampling.weights <- NULL
-  new.call$WLS.V <- WLS.V
-  new.call$NACOV <- Gamma
+  out <- Reduce(`+`, lapply(x, `[`, ref.names)) / length(x)
+  names(out) <- ref.names
+  out
+}
 
-  eval(as.call(new.call))
+average.matrices <- function(x) {
+  ref.dimnames <- dimnames(x[[1]])
+  if(!all(vapply(x, function(m) identical(dimnames(m), ref.dimnames), logical(1)))) {
+    stop("Ordinal covariance names do not match across imputations.")
+  }
+  out <- Reduce(`+`, x) / length(x)
+  dimnames(out) <- ref.dimnames
+  out
 }
 
 get.ordinal.stats <- function(data, ov.names, ordered, weights,

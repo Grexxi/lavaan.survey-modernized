@@ -347,6 +347,347 @@ with `TYPE = IMPUTATION` runs the model across completed datasets and reports
 means for several fit quantities. The parameter agreement is therefore the more
 important validation target here.
 
+## Validation 4: Ordinal Multiple-Imputation Survey CFA
+
+### Scope
+
+This validation checks the initial multiple-imputation path in
+`lavaan.survey.ordinal()`. The script simulates the same two-factor,
+six-indicator CFA structure used in the first ordinal validation, but stores the
+observed indicators as four-category ordered variables. The dataset has 600
+observations, 60 clusters, 6 strata, and sampling weights.
+
+Artificial missingness is introduced in three indicators:
+
+```text
+y2  MAR, depending on y1 and stratum
+y5  MAR, depending on y4 and weight
+y6  MCAR, about 15 percent
+```
+
+The missing ordinal responses are imputed ten times with `mice` using
+proportional-odds imputation (`polr`). The same ten completed datasets are then
+analyzed by `lavaan.survey.ordinal()` and Mplus Demo.
+
+The model is:
+
+```text
+f1 =~ y1 + y2 + y3
+f2 =~ y4 + y5 + y6
+f1 ~~ f2
+```
+
+The corresponding Mplus input uses:
+
+```text
+DATA: TYPE = IMPUTATION;
+VARIABLE: CATEGORICAL ARE y1-y6;
+VARIABLE: WEIGHT IS wgt; CLUSTER IS clu; STRATIFICATION IS str;
+ANALYSIS: TYPE = COMPLEX; ESTIMATOR = WLSMV; PARAMETERIZATION = DELTA;
+```
+
+### Commands
+
+Prepare the imputed datasets, Mplus input, and `lavaan.survey.ordinal()`
+results:
+
+```r
+source("validation/mplus-demo/prepare_ordinal_mi_validation_files.R")
+```
+
+Run Mplus Demo from `validation/mplus-demo`:
+
+```sh
+/Applications/MplusDemo/mpdemo ordinal_mi_complex.inp
+```
+
+Parse and compare the output:
+
+```r
+source("validation/mplus-demo/compare_mplus_ordinal_mi_output.R")
+```
+
+### Fit Measures
+
+| Measure | lavaan scaled | lavaan robust | Mplus WLSMV imputation mean |
+| --- | ---: | ---: | ---: |
+| Chi-square | 7.045 | -- | 10.300 |
+| df | 8 | -- | 8 |
+| p-value | 0.532 | -- | -- |
+| CFI | 1.000 | 1.000 | 0.999 |
+| TLI | 1.001 | 1.015 | 0.998 |
+| RMSEA | 0.000 | 0.000 | 0.020 |
+| SRMR | 0.0220 | 0.0220 | 0.017 |
+
+As in the continuous MI validation, Mplus reports means over imputed-data fit
+statistics, while `lavaan.survey.ordinal()` pools the ordinal sample statistics
+and their design-based covariance matrix before refitting one lavaan model.
+
+### Parameter Agreement
+
+The comparison matched 27 unstandardized parameters between the two outputs.
+
+| Quantity | Value |
+| --- | ---: |
+| Matched parameters | 27 |
+| Maximum absolute estimate difference | 0.0073 |
+| Maximum absolute standard error difference | 0.0032 |
+
+Largest estimate differences:
+
+| Parameter | lavaan.survey.ordinal | Mplus Demo | Mplus - lavaan |
+| --- | ---: | ---: | ---: |
+| `f2 =~ y5` | 0.9117 | 0.9190 | 0.0073 |
+| `f2 =~ y6` | 0.7129 | 0.7180 | 0.0051 |
+| `f1 =~ y3` | 0.8677 | 0.8640 | -0.0037 |
+| `f2 ~~ f2` | 0.7135 | 0.7110 | -0.0025 |
+| `f1 ~~ f2` | 0.2473 | 0.2450 | -0.0023 |
+| `f1 ~~ f1` | 0.6962 | 0.6980 | 0.0018 |
+
+Largest standard-error differences:
+
+| Parameter | lavaan.survey.ordinal | Mplus Demo | Mplus - lavaan |
+| --- | ---: | ---: | ---: |
+| `f1 =~ y3` | 0.0562 | 0.0530 | -0.0032 |
+| `f2 =~ y6` | 0.0701 | 0.0680 | -0.0021 |
+| `f1 =~ y2` | 0.0592 | 0.0610 | 0.0018 |
+| `f1 ~~ f1` | 0.0463 | 0.0470 | 0.0007 |
+| `y5 | t2` | 0.0555 | 0.0550 | -0.0005 |
+
+Threshold estimates are especially close, with most differences far below
+0.001. The largest differences are in a few factor loadings, which is also
+where the ESS4 real-data validation was most sensitive.
+
+### Interpretation
+
+This validation is encouraging for the new ordinal MI implementation. It checks
+the full path from imputed ordered indicators through complex survey correction
+and WLSMV-style ordinal SEM in both programs. Parameter estimates and standard
+errors agree closely, especially for thresholds.
+
+The remaining fit-measure differences are expected to be less diagnostic than
+the parameter comparison because Mplus and `lavaan.survey.ordinal()` summarize
+multiple-imputation fit differently.
+
+## Ordinal Multiple-Group Survey Validation
+
+This validation checks `lavaan.survey.ordinal()` for multiple-group ordinal CFA
+with survey weights, clusters, and strata. It uses a demo-compatible one-factor
+model with four four-category ordered indicators and two groups.
+
+The model is:
+
+```text
+f =~ y1 + y2 + y3 + y4
+```
+
+Mplus applies the model statement across groups. To match that parameterization
+in lavaan, the validation fits loading, threshold, and intercept invariance:
+
+```r
+group.equal = c("loadings", "thresholds", "intercepts")
+```
+
+This gives the same model degrees of freedom in Mplus and lavaan.
+
+The corresponding Mplus input uses:
+
+```text
+VARIABLE: CATEGORICAL ARE y1-y4;
+VARIABLE: GROUPING IS grp (1 = boys 2 = girls);
+VARIABLE: WEIGHT IS wgt; CLUSTER IS clu; STRATIFICATION IS str;
+ANALYSIS: TYPE = COMPLEX; ESTIMATOR = WLSMV; PARAMETERIZATION = DELTA;
+MODEL: f BY y1 y2 y3 y4;
+```
+
+### Commands
+
+Prepare the dataset, Mplus input, and `lavaan.survey.ordinal()` results:
+
+```r
+source("validation/mplus-demo/prepare_ordinal_group_validation_files.R")
+```
+
+Run Mplus Demo from `validation/mplus-demo`:
+
+```sh
+/Applications/MplusDemo/mpdemo ordinal_group_complex.inp
+```
+
+Parse and compare the output:
+
+```r
+source("validation/mplus-demo/compare_mplus_ordinal_group_output.R")
+```
+
+### Fit Measures
+
+| Measure | lavaan scaled | lavaan robust | Mplus WLSMV |
+| --- | ---: | ---: | ---: |
+| Chi-square | 10.948 | -- | 11.323 |
+| df | 14 | -- | 14 |
+| p-value | 0.690 | -- | 0.661 |
+| CFI | 1.000 | 1.000 | 1.000 |
+| TLI | 1.002 | 1.038 | 1.000 |
+| RMSEA | 0.000 | 0.000 | 0.000 |
+| SRMR | 0.0172 | 0.0172 | 0.0170 |
+
+### Parameter Agreement
+
+The comparison matched 34 unstandardized parameters between the two outputs.
+
+| Quantity | Value |
+| --- | ---: |
+| Matched parameters | 34 |
+| Maximum absolute estimate difference | 0.0050 |
+| Maximum absolute standard error difference | 0.0058 |
+
+Largest estimate differences:
+
+| Parameter | lavaan.survey.ordinal | Mplus Demo | Mplus - lavaan |
+| --- | ---: | ---: | ---: |
+| `girls: f ~~ f` | 0.7340 | 0.7390 | 0.0050 |
+| `boys: f =~ y2` | 0.8691 | 0.8650 | -0.0041 |
+| `girls: f =~ y2` | 0.8691 | 0.8650 | -0.0041 |
+| `boys: f =~ y3` | 0.8538 | 0.8510 | -0.0028 |
+| `girls: f =~ y3` | 0.8538 | 0.8510 | -0.0028 |
+
+Largest standard-error differences:
+
+| Parameter | lavaan.survey.ordinal | Mplus Demo | Mplus - lavaan |
+| --- | ---: | ---: | ---: |
+| `boys: y4 | t3` | 0.0788 | 0.0730 | -0.0058 |
+| `girls: y4 | t3` | 0.0788 | 0.0730 | -0.0058 |
+| `boys: f =~ y4` | 0.0590 | 0.0540 | -0.0050 |
+| `girls: f =~ y4` | 0.0590 | 0.0540 | -0.0050 |
+| `boys: f =~ y3` | 0.0601 | 0.0560 | -0.0041 |
+
+### Interpretation
+
+This is a strong cross-software check for the multiple-group ordinal path. With
+the same invariance parameterization, the global fit measures are very close and
+all compared loading, threshold, and factor-variance parameters match closely.
+
+## Ordinal Multiple-Group Multiple-Imputation Survey Validation
+
+This validation combines the previous two extensions: grouped ordinal indicators
+and multiple imputation. It uses the same one-factor, two-group ordinal CFA
+structure as the multiple-group validation and introduces artificial missingness
+in two ordered indicators.
+
+Artificial missingness is introduced in:
+
+```text
+y2  MAR, depending on y1 and group
+y4  MAR, depending on y3 and weight
+```
+
+The observed missing proportions are:
+
+| Variable | Missing proportion |
+| --- | ---: |
+| y1 | 0.000 |
+| y2 | 0.255 |
+| y3 | 0.000 |
+| y4 | 0.233 |
+
+The missing ordered responses are imputed ten times with `mice` using
+proportional-odds imputation (`polr`). The same ten completed datasets are then
+analyzed by `lavaan.survey.ordinal()` and Mplus Demo.
+
+The lavaan model uses the same invariance parameterization as the Mplus
+multiple-group model:
+
+```r
+group.equal = c("loadings", "thresholds", "intercepts")
+```
+
+The corresponding Mplus input uses:
+
+```text
+DATA: TYPE = IMPUTATION;
+VARIABLE: CATEGORICAL ARE y1-y4;
+VARIABLE: GROUPING IS grp (1 = boys 2 = girls);
+VARIABLE: WEIGHT IS wgt; CLUSTER IS clu; STRATIFICATION IS str;
+ANALYSIS: TYPE = COMPLEX; ESTIMATOR = WLSMV; PARAMETERIZATION = DELTA;
+MODEL: f BY y1 y2 y3 y4;
+```
+
+### Commands
+
+Prepare the imputed datasets, Mplus input, and `lavaan.survey.ordinal()`
+results:
+
+```r
+source("validation/mplus-demo/prepare_ordinal_group_mi_validation_files.R")
+```
+
+Run Mplus Demo from `validation/mplus-demo`:
+
+```sh
+/Applications/MplusDemo/mpdemo ordinal_group_mi_complex.inp
+```
+
+Parse and compare the output:
+
+```r
+source("validation/mplus-demo/compare_mplus_ordinal_group_mi_output.R")
+```
+
+### Fit Measures
+
+| Measure | lavaan scaled | lavaan robust | Mplus WLSMV imputation mean |
+| --- | ---: | ---: | ---: |
+| Chi-square | 8.732 | -- | 12.479 |
+| df | 14 | -- | 14 |
+| p-value | 0.848 | -- | -- |
+| CFI | 1.000 | 1.000 | 1.000 |
+| TLI | 1.005 | 1.033 | 1.001 |
+| RMSEA | 0.000 | 0.076 | 0.006 |
+| SRMR | 0.0217 | 0.0217 | 0.019 |
+
+As in the other MI validations, fit measures should be interpreted with care:
+Mplus reports summaries across imputed-data analyses, while
+`lavaan.survey.ordinal()` pools thresholds, polychoric correlations, and their
+design-based covariance matrix before fitting one lavaan model.
+
+### Parameter Agreement
+
+The comparison matched 34 unstandardized parameters between the two outputs.
+
+| Quantity | Value |
+| --- | ---: |
+| Matched parameters | 34 |
+| Maximum absolute estimate difference | 0.0123 |
+| Maximum absolute standard error difference | 0.0043 |
+
+Largest estimate differences:
+
+| Parameter | lavaan.survey.ordinal | Mplus Demo | Mplus - lavaan |
+| --- | ---: | ---: | ---: |
+| `girls: f ~~ f` | 0.8923 | 0.8800 | -0.0123 |
+| `boys: f =~ y4` | 0.7348 | 0.7440 | 0.0092 |
+| `girls: f =~ y4` | 0.7348 | 0.7440 | 0.0092 |
+| `boys: y1 | t3` | 1.1638 | 1.1570 | -0.0068 |
+| `girls: y1 | t3` | 1.1638 | 1.1570 | -0.0068 |
+
+Largest standard-error differences:
+
+| Parameter | lavaan.survey.ordinal | Mplus Demo | Mplus - lavaan |
+| --- | ---: | ---: | ---: |
+| `boys: y4 | t3` | 0.0743 | 0.0700 | -0.0043 |
+| `girls: y4 | t3` | 0.0743 | 0.0700 | -0.0043 |
+| `boys: f =~ y4` | 0.0633 | 0.0600 | -0.0033 |
+| `girls: f =~ y4` | 0.0633 | 0.0600 | -0.0033 |
+| `girls: f ~~ f` | 0.1550 | 0.1580 | 0.0030 |
+
+### Interpretation
+
+This is the broadest Mplus Demo validation currently in the repository. It
+checks ordered indicators, grouping, invariance constraints, complex survey
+correction, and multiple imputation together. The parameter agreement is strong
+given that the two programs summarize MI fit differently.
+
 ## Files Produced Locally
 
 The scripts produce these generated files, which are intentionally ignored by
@@ -382,6 +723,37 @@ Git:
 - `continuous_mi_mplus_parameters_raw.csv`
 - `continuous_mi_mplus_lavaan_fit_comparison.csv`
 - `continuous_mi_mplus_lavaan_parameter_comparison.csv`
+- `ordinal_mi_imp01.dat` through `ordinal_mi_imp10.dat`
+- `ordinal_mi_implist.dat`
+- `ordinal_mi_complex.inp`
+- `ordinal_mi_complex.out`
+- `ordinal_mi_missing_summary.csv`
+- `ordinal_mi_lavaan_survey_parameters.csv`
+- `ordinal_mi_lavaan_survey_fit.csv`
+- `ordinal_mi_mplus_fit_summary.csv`
+- `ordinal_mi_mplus_parameters_raw.csv`
+- `ordinal_mi_mplus_lavaan_fit_comparison.csv`
+- `ordinal_mi_mplus_lavaan_parameter_comparison.csv`
+- `ordinal_group_complex.dat`
+- `ordinal_group_complex.inp`
+- `ordinal_group_complex.out`
+- `ordinal_group_lavaan_survey_parameters.csv`
+- `ordinal_group_lavaan_survey_fit.csv`
+- `ordinal_group_mplus_fit_summary.csv`
+- `ordinal_group_mplus_parameters_raw.csv`
+- `ordinal_group_mplus_lavaan_fit_comparison.csv`
+- `ordinal_group_mplus_lavaan_parameter_comparison.csv`
+- `ordinal_group_mi_imp01.dat` through `ordinal_group_mi_imp10.dat`
+- `ordinal_group_mi_implist.dat`
+- `ordinal_group_mi_complex.inp`
+- `ordinal_group_mi_complex.out`
+- `ordinal_group_mi_missing_summary.csv`
+- `ordinal_group_mi_lavaan_survey_parameters.csv`
+- `ordinal_group_mi_lavaan_survey_fit.csv`
+- `ordinal_group_mi_mplus_fit_summary.csv`
+- `ordinal_group_mi_mplus_parameters_raw.csv`
+- `ordinal_group_mi_mplus_lavaan_fit_comparison.csv`
+- `ordinal_group_mi_mplus_lavaan_parameter_comparison.csv`
 
 ## References
 
