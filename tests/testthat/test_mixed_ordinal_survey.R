@@ -614,10 +614,28 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
   expect_s3_class(fit_pooled, "lavaan.survey.mi")
   expect_equal(fit_pooled$within.variance, "replicate")
   expect_equal(fit_pooled$survey.info$within.variance, "replicate")
+  expect_equal(fit_pooled$df.complete,
+               min(vapply(rep_design$designs, survey::degf, numeric(1))))
   expect_equal(coef(fit_pooled), coef(expected), tolerance=1e-10)
   expect_equal(vcov(fit_pooled), vcov(expected), tolerance=1e-10,
                check.attributes=FALSE)
   expect_true(all(diag(fit_pooled$vcov.within) >= 0))
+
+  summary_table <- capture.output(summary_out <- summary(fit_pooled))
+  expect_true(length(summary_table) > 0)
+  expect_true(all(c("Estimate", "Std.Err", "t.value", "df", "P.value") %in%
+                    names(summary_out)))
+  expect_false("z.value" %in% names(summary_out))
+  expected_df <- lavaan.survey:::barnard.rubin.df(fit_pooled)
+  expected_p <- 2 * stats::pt(abs(summary_out$t.value),
+                              df=expected_df,
+                              lower.tail=FALSE)
+  normal_ref <- is.infinite(expected_df)
+  expected_p[normal_ref] <- 2 * stats::pnorm(abs(summary_out$t.value[normal_ref]),
+                                             lower.tail=FALSE)
+  expect_equal(summary_out$df, expected_df, tolerance=1e-10,
+               check.attributes=FALSE)
+  expect_equal(summary_out$P.value, expected_p, tolerance=1e-10)
 })
 
 test_that("mixed MI defaults to the Mplus-nearer parameter-pooling path", {

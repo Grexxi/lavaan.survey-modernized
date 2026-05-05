@@ -102,7 +102,10 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
   \code{mi.pooling = "sample.statistics"} or non-MI designs. For
   \code{mi.pooling = "parameters"} and for mixed MI models under the
   \code{"auto"} default, a \code{lavaan.survey.mi} object with \code{coef},
-  \code{vcov}, \code{print}, and \code{summary} methods is returned.
+  \code{vcov}, \code{print}, and \code{summary} methods is returned. The
+  summary method reports Rubin-pooled standard errors with Barnard-Rubin
+  degrees of freedom when complete-data survey design degrees of freedom are
+  available.
 }
 \seealso{
   \code{\link{lavaan.survey}},
