@@ -214,8 +214,11 @@ information, multiple imputation, multiple-group CFA, and equality constraints.
 single-group and multiple-group models where all observed model variables are
 ordered. Mixed continuous/ordinal observed-variable sets have an experimental
 single-group and multiple-group proof-of-concept path, including multiple
-imputation; Mplus validation workflows for mixed indicators still need
-follow-up testing.
+imputation. The mixed multiple-group MI path now has an Mplus Demo diagnostic
+workflow, but it should still be treated as experimental: Mplus runs the model,
+whereas the current `lavaan.survey.ordinal()` pooled-statistic MI approach does
+not yet reproduce Mplus's `TYPE = IMPUTATION` results for this hardest mixed
+case.
 
 ## Package checks
 
@@ -239,6 +242,7 @@ new ordinal workflow:
 | 5 | Ordinal survey SEM with multiple imputation | Cross-checked against Mplus Demo with the same ten imputed datasets | `validation/mplus-demo/prepare_ordinal_mi_validation_files.R` |
 | 6 | Ordinal multiple-group / invariance models | Cross-checked against Mplus Demo | `validation/mplus-demo/prepare_ordinal_group_validation_files.R` |
 | 7 | Ordinal multiple-group / invariance models with multiple imputation | Cross-checked against Mplus Demo | `validation/mplus-demo/prepare_ordinal_group_mi_validation_files.R` |
+| 8 | Mixed ordinal/continuous multiple-group models with multiple imputation | Diagnostic Mplus Demo workflow added; current pooled-statistic implementation does not yet match Mplus `TYPE = IMPUTATION` in this hardest case | `validation/mplus-demo/prepare_mixed_group_mi_validation_files.R` |
 
 The detailed Mplus Demo workflows live in `validation/mplus-demo/`; see
 `validation/mplus-demo/README.md` for run commands and

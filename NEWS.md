@@ -64,6 +64,10 @@ endorsed by the original author/maintainer.
 * Added an ordinal multiple-group multiple-imputation Mplus Demo validation
   workflow using the same ten imputed datasets in Mplus and
   `lavaan.survey.ordinal()`.
+* Added a mixed ordinal/continuous multiple-group multiple-imputation Mplus
+  Demo diagnostic workflow. The workflow runs successfully in Mplus Demo and
+  currently documents a mismatch with the pooled-statistic MI implementation,
+  so the mixed MI path remains experimental.
 * Added a vignette for ordinal survey SEM with multiple imputation and
   multiple-group models.
 * Updated manual pages for the modernization fork, ordinal support, replicate
@@ -79,5 +83,7 @@ endorsed by the original author/maintainer.
 
 ## Current limitations
 
-* Mixed continuous/ordinal observed-variable sets are still experimental.
-  Mplus validation workflows for mixed indicators remain future work.
+* Mixed continuous/ordinal observed-variable sets are still experimental. The
+  mixed multiple-group MI Mplus Demo workflow now runs, but it flags a
+  substantive difference between Mplus's `TYPE = IMPUTATION` parameter pooling
+  and the current `lavaan.survey.ordinal()` pooled-statistic MI approach.
