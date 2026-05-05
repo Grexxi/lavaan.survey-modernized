@@ -36,6 +36,8 @@ endorsed by the original author/maintainer.
   longer available.
 * Made ordinal refits independent of local model object names by refitting from
   the fitted model's parameter table.
+* Propagated `meanstructure` consistently from `lavaan.survey.ordinal()` into
+  the internal `lavCor()` calls, matching the continuous refit path.
 
 ## Testing
 

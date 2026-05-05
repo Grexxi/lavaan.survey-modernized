@@ -17,12 +17,13 @@ make_mixed_indicator_data <- function(n=300) {
   )
 }
 
-fit_mixed_indicator_model <- function(data) {
+fit_mixed_indicator_model <- function(data, ...) {
   lavaan::cfa(
     model="f =~ y1 + y2 + x1 + x2",
     data=data,
     ordered=c("y1", "y2"),
-    estimator="WLSMV"
+    estimator="WLSMV",
+    ...
   )
 }
 
@@ -40,7 +41,7 @@ test_that("mixed ordinal and continuous survey CFA works", {
     type="bootstrap",
     replicates=12
   )
-  fit <- fit_mixed_indicator_model(data)
+  fit <- fit_mixed_indicator_model(data, meanstructure=FALSE)
 
   fit_survey <- suppressWarnings(lavaan.survey.ordinal(
     lavaan.fit=fit,
@@ -53,6 +54,7 @@ test_that("mixed ordinal and continuous survey CFA works", {
   thresholds <- pe[pe$op == "|", ]
 
   expect_true(lavaan::lavInspect(fit_survey, "converged"))
+  expect_true(lavaan::lavInspect(fit_survey, "options")$meanstructure)
   expect_true(is.finite(lavaan::fitMeasures(fit_survey, "chisq.scaled")))
   expect_equal(sort(loadings$rhs), c("x1", "x2", "y1", "y2"))
   expect_equal(sort(unique(thresholds$lhs)), c("y1", "y2"))

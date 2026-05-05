@@ -217,6 +217,7 @@ lavaan.survey.ordinal <-
   estimator <- match.arg(estimator)
 
   ngroups <- lavInspect(lavaan.fit, "ngroups")
+  meanstructure <- isTRUE(lavInspect(lavaan.fit, "options")$meanstructure)
   group.var <- NULL
   group.labels <- NULL
   if(ngroups > 1) {
@@ -265,7 +266,8 @@ lavaan.survey.ordinal <-
     ordinal.stats <- lapply(rep.design$designs, get.ordinal.survey.stats,
                             ov.names=ov.names, ordered=ordered,
                             ngroups=ngroups, group.var=group.var,
-                            group.labels=group.labels)
+                            group.labels=group.labels,
+                            meanstructure=meanstructure)
     ordinal.stats <- pool.ordinal.mi.stats(ordinal.stats, ngroups=ngroups,
                                            group.labels=group.labels)
   }
@@ -275,7 +277,8 @@ lavaan.survey.ordinal <-
                                               ordered=ordered,
                                               ngroups=ngroups,
                                               group.var=group.var,
-                                              group.labels=group.labels)
+                                              group.labels=group.labels,
+                                              meanstructure=meanstructure)
   }
 
   point.stats <- ordinal.stats$point.stats
@@ -304,13 +307,15 @@ lavaan.survey.ordinal <-
 
 get.ordinal.survey.stats <- function(rep.design, ov.names, ordered,
                                      ngroups, group.var=NULL,
-                                     group.labels=NULL) {
+                                     group.labels=NULL,
+                                     meanstructure=TRUE) {
   data <- rep.design$variables
   point.weights <- stats::weights(rep.design, type="sampling")
   point.stats <- get.ordinal.stats(data=data, ov.names=ov.names,
                                    ordered=ordered, weights=point.weights,
                                    group=group.var, group.labels=group.labels,
-                                   full=TRUE)
+                                   full=TRUE,
+                                   meanstructure=meanstructure)
 
   rep.weights <- stats::weights(rep.design, type="analysis")
   if(ngroups == 1) {
@@ -322,7 +327,8 @@ get.ordinal.survey.stats <- function(rep.design, ov.names, ordered,
       rep.stats[r, ] <- get.ordinal.stats(data=data, ov.names=ov.names,
                                           ordered=ordered,
                                           weights=rep.weights[, r],
-                                          wls.names=names(point.stats$wls.obs))$wls.obs
+                                          wls.names=names(point.stats$wls.obs),
+                                          meanstructure=meanstructure)$wls.obs
     }
 
     Gamma <- survey::svrVar(rep.stats, scale=rep.design$scale,
@@ -349,7 +355,8 @@ get.ordinal.survey.stats <- function(rep.design, ov.names, ordered,
                                  weights=rep.weights[, r],
                                  group=group.var,
                                  group.labels=group.labels,
-                                 wls.names=lapply(point.stats$wls.obs, names))$wls.obs
+                                 wls.names=lapply(point.stats$wls.obs, names),
+                                 meanstructure=meanstructure)$wls.obs
     for(g in seq_len(ngroups)) rep.stats[[g]][r, ] <- rep.wls[[g]]
   }
 
@@ -502,7 +509,8 @@ average.matrices <- function(x) {
 
 get.ordinal.stats <- function(data, ov.names, ordered, weights,
                               group=NULL, group.labels=NULL,
-                              wls.names=NULL, full=FALSE) {
+                              wls.names=NULL, full=FALSE,
+                              meanstructure=TRUE) {
   weight.name <- ".lavaan.survey.weight"
   while(weight.name %in% names(data)) weight.name <- paste0(".", weight.name)
 
@@ -523,7 +531,8 @@ get.ordinal.stats <- function(data, ov.names, ordered, weights,
   if(full) {
     unrestricted <- lavaan::lavCor(data, ordered=ordered, sampling.weights=weight.name,
                                    group=group,
-                                   output="lavaan", missing="listwise")
+                                   output="lavaan", missing="listwise",
+                                   meanstructure=meanstructure)
     sample.stats <- lavInspect(unrestricted, "sampstat")
     wls.obs <- lavInspect(unrestricted, "wls.obs")
 
@@ -555,7 +564,8 @@ get.ordinal.stats <- function(data, ov.names, ordered, weights,
   if(!all.ordinal) {
     unrestricted <- lavaan::lavCor(data, ordered=ordered, sampling.weights=weight.name,
                                    group=group,
-                                   output="lavaan", missing="listwise")
+                                   output="lavaan", missing="listwise",
+                                   meanstructure=meanstructure)
     wls.obs <- lavInspect(unrestricted, "wls.obs")
 
     if(is.null(group)) {
@@ -577,7 +587,8 @@ get.ordinal.stats <- function(data, ov.names, ordered, weights,
 
   sample.stats <- lavaan::lavCor(data, ordered=ordered, sampling.weights=weight.name,
                                  group=group,
-                                 output="sampstat", missing="listwise")
+                                 output="sampstat", missing="listwise",
+                                 meanstructure=meanstructure)
   if(is.null(group)) {
     wls.obs <- get.ordinal.wls.obs(sample.stats)
     if(!is.null(wls.names)) wls.obs <- wls.obs[wls.names]
