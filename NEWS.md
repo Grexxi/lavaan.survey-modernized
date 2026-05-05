@@ -92,6 +92,13 @@ endorsed by the original author/maintainer.
 * Renames an internal survey subsetting helper to avoid S3-style naming
   ambiguity and aligns ordinal refitting with the continuous refit evaluation
   environment.
+* Adds defensive checks to mixed/ordinal MI parameter pooling: imputation-level
+  refit failures now report the imputation index, replicate-based
+  within-imputation covariance estimation warns when many replicate refits
+  fail, and explicit `vcov.list` inputs must match the number of imputed fits.
+* Removes the unused experimental `cluster` argument from
+  `lavaan.survey.ordinal()`; cluster and strata information continue to come
+  from the supplied `survey` design or replicate design.
 * Updates legacy numerical tolerances for current `lavaan` and `survey`
   versions.
 

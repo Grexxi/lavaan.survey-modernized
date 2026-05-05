@@ -14,8 +14,7 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
                       point.wls = c("auto", "lavaan", "design"),
                       mi.pooling = c("auto", "parameters", "sample.statistics"),
                       within.variance = c("auto", "replicate",
-                                          "lavaan.robust", "naive"),
-                      cluster = NULL)
+                                          "lavaan.robust", "naive"))
 }
 \arguments{
   \item{lavaan.fit}{
@@ -77,12 +76,6 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
     cluster-robust fast path, but current lavaan versions do not support
     clustered estimation together with ordered/categorical indicators, so this
     option currently stops with an informative error.
-  }
-  \item{cluster}{
-    Optional cluster variable name intended for the future
-    \code{within.variance = "lavaan.robust"} path. It is currently accepted for
-    API clarity, but lavaan does not yet support the required ordered
-    categorical plus clustered combination.
   }
 }
 \details{

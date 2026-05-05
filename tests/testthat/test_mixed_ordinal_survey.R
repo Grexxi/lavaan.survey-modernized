@@ -523,6 +523,41 @@ test_that("mixed single-group MI models support Rubin parameter pooling", {
   expect_true(all(is.finite(fit_pooled$fit.measures)))
 })
 
+test_that("mixed MI parameter pooling reports the failing imputation", {
+  skip_if_not_installed("mitools")
+
+  imputed_data <- make_mixed_indicator_mi_data()
+  imputation_list <- mitools::imputationList(imputed_data)
+  design <- survey::svydesign(
+    ids=~cluster,
+    strata=~stratum,
+    weights=~weight,
+    data=imputation_list,
+    nest=TRUE
+  )
+  rep_design <- survey::as.svrepdesign(
+    design,
+    type="bootstrap",
+    replicates=4
+  )
+  rep_design$designs[[2]]$variables$y1 <- NULL
+  fit <- fit_mixed_indicator_model(imputed_data[[1]])
+
+  expect_error(
+    suppressWarnings(lavaan.survey:::pool.ordinal.mi.parameters(
+      lavaan.fit=fit,
+      rep.design=rep_design,
+      ordered=c("y1", "y2"),
+      estimator="WLSMV",
+      point.wls="lavaan",
+      rep.type="bootstrap",
+      replicates=4,
+      within.variance="naive"
+    )),
+    "Imputation 2 failed:"
+  )
+})
+
 test_that("mixed MI parameter pooling can use replicate within variance", {
   skip_if_not_installed("mitools")
 
@@ -567,6 +602,13 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
   expected <- lavaan.survey:::pool.lavaan.mi.parameters(
     per_imputation,
     vcov.list=replicate.vcov
+  )
+  expect_error(
+    lavaan.survey:::pool.lavaan.mi.parameters(
+      per_imputation,
+      vcov.list=replicate.vcov[-1]
+    ),
+    "vcov.list \\(.*\\) and fits \\(.*\\) must have the same length"
   )
 
   expect_s3_class(fit_pooled, "lavaan.survey.mi")
@@ -748,8 +790,7 @@ test_that("lavaan robust within variance is guarded for ordered models", {
       estimator="WLSMV",
       point.wls="lavaan",
       mi.pooling="parameters",
-      within.variance="lavaan.robust",
-      cluster="cluster"
+      within.variance="lavaan.robust"
     ),
     "categorical \\+ clustered estimation is not supported"
   )
