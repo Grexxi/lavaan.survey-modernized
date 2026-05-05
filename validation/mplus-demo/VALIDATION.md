@@ -1,7 +1,8 @@
 # Mplus Demo Validation Results
 
-This note records a first cross-software validation run for
-`lavaan.survey.ordinal()` against Mplus Demo 9.
+This note records cross-software validation checks for the modernized
+`lavaan.survey` package against Mplus Demo 9, plus the continuous package
+regression tests that anchor the original workflow.
 
 ## Note on Scaled and Robust Fit Measures
 
@@ -17,7 +18,168 @@ nested model comparisons. The Mplus authors also describe the WLSMV/ULSMV/MLMV
 second-order chi-square correction as a scaled and shifted approximation to a
 chi-square distribution.
 
-## Validation 1: Simulated Ordinal Survey CFA
+## Validation Ladder
+
+The validation results are organized from the original continuous workflow to the
+new ordinal workflow:
+
+| Step | Target | Result status |
+| --- | --- | --- |
+| 1 | Continuous survey SEM | Covered by package regression tests and the bundled Roosma example; no separate Mplus Demo result section yet. |
+| 2 | Continuous survey SEM with multiple imputation | Cross-checked against Mplus Demo. |
+| 3 | Continuous multiple-group / invariance models | Planned next validation target. |
+| 4 | Ordinal survey SEM | Cross-checked against Mplus Demo on simulated data and ESS4 GB. |
+| 5 | Ordinal survey SEM with multiple imputation | Cross-checked against Mplus Demo. |
+| 6 | Ordinal multiple-group / invariance models | Cross-checked against Mplus Demo. |
+| 7 | Ordinal multiple-group / invariance models with multiple imputation | Cross-checked against Mplus Demo. |
+
+
+## Validation 1: Continuous Survey SEM
+
+The basic continuous survey SEM path is covered by package regression tests
+rather than by a separate Mplus Demo workflow in this folder.
+
+- `tests/testthat/test_roosma.R` checks the bundled ESS4/Roosma example against
+  legacy numerical targets for `lavaan.survey()`.
+- `tests/testthat/test_continuous_robustness.R` checks modern continuous-path
+  robustness cases, including Yuan-Bentler without a mean structure,
+  multiple-group refits, multiple imputation sample sizes, and `pval.pFsum()`.
+
+A dedicated continuous Mplus Demo comparison without multiple imputation remains
+a useful future validation target.
+
+
+## Validation 2: Continuous Multiple-Imputation Survey CFA
+
+### Scope
+
+This validation checks the modernized continuous multiple-imputation path in the
+original `lavaan.survey()` function. The script simulates a two-factor
+continuous CFA model with six indicators, 600 observations, 60 clusters, 6
+strata, and sampling weights. Artificial missingness is introduced in three
+indicators:
+
+```text
+y2  MAR, depending on y1 and stratum
+y5  MAR, depending on y4 and weight
+y6  MCAR, about 15 percent
+```
+
+The missing data are imputed ten times with `mice`. The same ten completed
+datasets are then analyzed by both `lavaan.survey()` and Mplus Demo, so the
+comparison focuses on the SEM/survey/MI analysis layer rather than on different
+imputation engines.
+
+The model is:
+
+```text
+f1 =~ y1 + y2 + y3
+f2 =~ y4 + y5 + y6
+f1 ~~ f2
+```
+
+The corresponding Mplus input uses:
+
+```text
+DATA: TYPE = IMPUTATION;
+VARIABLE: WEIGHT IS wgt; CLUSTER IS clu; STRATIFICATION IS str;
+ANALYSIS: TYPE = COMPLEX; ESTIMATOR = MLR;
+```
+
+### Commands
+
+Prepare the imputed datasets, Mplus input, and `lavaan.survey()` results:
+
+```r
+source("validation/mplus-demo/prepare_continuous_mi_validation_files.R")
+```
+
+Run Mplus Demo from `validation/mplus-demo`:
+
+```sh
+/Applications/MplusDemo/mpdemo continuous_mi_complex.inp
+```
+
+Parse and compare the output:
+
+```r
+source("validation/mplus-demo/compare_mplus_continuous_mi_output.R")
+```
+
+### Fit Measures
+
+| Measure | lavaan scaled | Mplus MLR imputation mean |
+| --- | ---: | ---: |
+| Chi-square | 8.875 | 15.327 |
+| df | 8 | 8 |
+| p-value | 0.353 | -- |
+| CFI | 0.999 | 0.995 |
+| TLI | 0.998 | 0.990 |
+| RMSEA | 0.014 | 0.036 |
+| SRMR | 0.0205 | 0.022 |
+
+Mplus prints the mean and standard deviation over the ten imputed-data fit
+statistics; it does not print the same single pooled lavaan-style scaled test
+statistic used by `lavaan.survey()`.
+
+### Parameter Agreement
+
+The comparison matched 21 unstandardized parameters between the two outputs.
+
+| Quantity | Value |
+| --- | ---: |
+| Matched parameters | 21 |
+| Maximum absolute estimate difference | 0.0012 |
+| Maximum absolute standard error difference | 0.0015 |
+
+Largest estimate differences:
+
+| Parameter | lavaan.survey | Mplus Demo | Mplus - lavaan |
+| --- | ---: | ---: | ---: |
+| `y2 ~~ y2` | 0.3542 | 0.3530 | -0.0012 |
+| `f2 ~~ f2` | 0.7452 | 0.7460 | 0.0008 |
+| `f2 =~ y6` | 0.8383 | 0.8390 | 0.0007 |
+| `f1 ~~ f2` | 0.2865 | 0.2860 | -0.0005 |
+| `f2 =~ y5` | 0.8645 | 0.8650 | 0.0005 |
+| `y4 ~1` | -0.1065 | -0.1060 | 0.0005 |
+
+Largest standard-error differences:
+
+| Parameter | lavaan.survey | Mplus Demo | Mplus - lavaan |
+| --- | ---: | ---: | ---: |
+| `f2 =~ y5` | 0.0645 | 0.0630 | -0.0015 |
+| `f1 =~ y3` | 0.0524 | 0.0510 | -0.0014 |
+| `y2 ~~ y2` | 0.0376 | 0.0390 | 0.0014 |
+| `y5 ~~ y5` | 0.0472 | 0.0460 | -0.0012 |
+| `f1 =~ y2` | 0.0670 | 0.0680 | 0.0010 |
+
+### Interpretation
+
+This is a strong sanity check for the continuous MI modernization. When both
+programs receive the same ten imputed datasets and the same complex survey
+variables, unstandardized parameter estimates and standard errors agree to
+roughly the third decimal place.
+
+The fit measures are less direct. `lavaan.survey()` pools the sample statistics
+and their design-based covariance matrix, then fits one lavaan model. Mplus
+with `TYPE = IMPUTATION` runs the model across completed datasets and reports
+means for several fit quantities. The parameter agreement is therefore the more
+important validation target here.
+
+## Validation 3: Continuous Multiple-Group / Invariance Survey CFA
+
+This validation cell is intentionally listed as planned. The repository already
+checks continuous multiple-group refitting in `test_continuous_robustness.R`,
+but it does not yet contain a dedicated Mplus Demo comparison for continuous
+measurement invariance.
+
+A future workflow should mirror the ordinal invariance validation with
+continuous indicators, survey weights, clusters, strata, and equality
+constraints such as loadings and intercepts. This would complete the continuous
+side of the validation ladder before extending it further.
+
+
+## Validation 4a: Simulated Ordinal Survey CFA
 
 ### Scope
 
@@ -105,7 +267,7 @@ rounding, weight scaling, robust test statistic corrections, and output
 precision. The goal of this validation is therefore numerical agreement within a
 small tolerance, not bit-for-bit identity.
 
-## Validation 2: ESS4 GB Ordinal Survey CFA
+## Validation 4b: ESS4 GB Ordinal Survey CFA
 
 ### Data Source
 
@@ -230,124 +392,7 @@ fit-index discrepancy is mostly an apples-to-oranges comparison between Mplus
 WLSMV and lavaan's extra robust fit-index column. More real-data comparisons are
 still useful before treating the ordinal extension as production-grade.
 
-## Validation 3: Continuous Multiple-Imputation Survey CFA
-
-### Scope
-
-This validation checks the modernized continuous multiple-imputation path in the
-original `lavaan.survey()` function. The script simulates a two-factor
-continuous CFA model with six indicators, 600 observations, 60 clusters, 6
-strata, and sampling weights. Artificial missingness is introduced in three
-indicators:
-
-```text
-y2  MAR, depending on y1 and stratum
-y5  MAR, depending on y4 and weight
-y6  MCAR, about 15 percent
-```
-
-The missing data are imputed ten times with `mice`. The same ten completed
-datasets are then analyzed by both `lavaan.survey()` and Mplus Demo, so the
-comparison focuses on the SEM/survey/MI analysis layer rather than on different
-imputation engines.
-
-The model is:
-
-```text
-f1 =~ y1 + y2 + y3
-f2 =~ y4 + y5 + y6
-f1 ~~ f2
-```
-
-The corresponding Mplus input uses:
-
-```text
-DATA: TYPE = IMPUTATION;
-VARIABLE: WEIGHT IS wgt; CLUSTER IS clu; STRATIFICATION IS str;
-ANALYSIS: TYPE = COMPLEX; ESTIMATOR = MLR;
-```
-
-### Commands
-
-Prepare the imputed datasets, Mplus input, and `lavaan.survey()` results:
-
-```r
-source("validation/mplus-demo/prepare_continuous_mi_validation_files.R")
-```
-
-Run Mplus Demo from `validation/mplus-demo`:
-
-```sh
-/Applications/MplusDemo/mpdemo continuous_mi_complex.inp
-```
-
-Parse and compare the output:
-
-```r
-source("validation/mplus-demo/compare_mplus_continuous_mi_output.R")
-```
-
-### Fit Measures
-
-| Measure | lavaan scaled | Mplus MLR imputation mean |
-| --- | ---: | ---: |
-| Chi-square | 8.875 | 15.327 |
-| df | 8 | 8 |
-| p-value | 0.353 | -- |
-| CFI | 0.999 | 0.995 |
-| TLI | 0.998 | 0.990 |
-| RMSEA | 0.014 | 0.036 |
-| SRMR | 0.0205 | 0.022 |
-
-Mplus prints the mean and standard deviation over the ten imputed-data fit
-statistics; it does not print the same single pooled lavaan-style scaled test
-statistic used by `lavaan.survey()`.
-
-### Parameter Agreement
-
-The comparison matched 21 unstandardized parameters between the two outputs.
-
-| Quantity | Value |
-| --- | ---: |
-| Matched parameters | 21 |
-| Maximum absolute estimate difference | 0.0012 |
-| Maximum absolute standard error difference | 0.0015 |
-
-Largest estimate differences:
-
-| Parameter | lavaan.survey | Mplus Demo | Mplus - lavaan |
-| --- | ---: | ---: | ---: |
-| `y2 ~~ y2` | 0.3542 | 0.3530 | -0.0012 |
-| `f2 ~~ f2` | 0.7452 | 0.7460 | 0.0008 |
-| `f2 =~ y6` | 0.8383 | 0.8390 | 0.0007 |
-| `f1 ~~ f2` | 0.2865 | 0.2860 | -0.0005 |
-| `f2 =~ y5` | 0.8645 | 0.8650 | 0.0005 |
-| `y4 ~1` | -0.1065 | -0.1060 | 0.0005 |
-
-Largest standard-error differences:
-
-| Parameter | lavaan.survey | Mplus Demo | Mplus - lavaan |
-| --- | ---: | ---: | ---: |
-| `f2 =~ y5` | 0.0645 | 0.0630 | -0.0015 |
-| `f1 =~ y3` | 0.0524 | 0.0510 | -0.0014 |
-| `y2 ~~ y2` | 0.0376 | 0.0390 | 0.0014 |
-| `y5 ~~ y5` | 0.0472 | 0.0460 | -0.0012 |
-| `f1 =~ y2` | 0.0670 | 0.0680 | 0.0010 |
-
-### Interpretation
-
-This is a strong sanity check for the continuous MI modernization. When both
-programs receive the same ten imputed datasets and the same complex survey
-variables, unstandardized parameter estimates and standard errors agree to
-roughly the third decimal place.
-
-The fit measures are less direct. `lavaan.survey()` pools the sample statistics
-and their design-based covariance matrix, then fits one lavaan model. Mplus
-with `TYPE = IMPUTATION` runs the model across completed datasets and reports
-means for several fit quantities. The parameter agreement is therefore the more
-important validation target here.
-
-## Validation 4: Ordinal Multiple-Imputation Survey CFA
+## Validation 5: Ordinal Multiple-Imputation Survey CFA
 
 ### Scope
 
@@ -469,7 +514,7 @@ The remaining fit-measure differences are expected to be less diagnostic than
 the parameter comparison because Mplus and `lavaan.survey.ordinal()` summarize
 multiple-imputation fit differently.
 
-## Ordinal Multiple-Group Survey Validation
+## Validation 6: Ordinal Multiple-Group / Invariance Survey CFA
 
 This validation checks `lavaan.survey.ordinal()` for multiple-group ordinal CFA
 with survey weights, clusters, and strata. It uses a demo-compatible one-factor
@@ -568,7 +613,7 @@ This is a strong cross-software check for the multiple-group ordinal path. With
 the same invariance parameterization, the global fit measures are very close and
 all compared loading, threshold, and factor-variance parameters match closely.
 
-## Ordinal Multiple-Group Multiple-Imputation Survey Validation
+## Validation 7: Ordinal Multiple-Group / Invariance Multiple-Imputation Survey CFA
 
 This validation combines the previous two extensions: grouped ordinal indicators
 and multiple imputation. It uses the same one-factor, two-group ordinal CFA

@@ -226,9 +226,22 @@ R CMD check lavaan.survey_1.2.0.tar.gz
 
 ## Cross-software validation
 
-The repository includes a small Mplus Demo validation workflow under
-`validation/mplus-demo/`. It creates a six-indicator ordinal survey CFA that fits
-within the Mplus Demo limits and compares the resulting Mplus output with
-`lavaan.survey.ordinal()` results. For WLSMV, the Mplus fit block is compared
-primarily with lavaan's scaled fit measures; lavaan's additional robust CFI, TLI,
-and RMSEA are treated as sensitivity checks rather than direct Mplus targets.
+Validation is organized as a ladder from the original continuous workflow to the
+new ordinal workflow:
+
+| Step | Target | Status | Main files |
+| --- | --- | --- | --- |
+| 1 | Continuous survey SEM | Covered by package regression tests and the bundled Roosma example | `tests/testthat/test_roosma.R`, `tests/testthat/test_continuous_robustness.R` |
+| 2 | Continuous survey SEM with multiple imputation | Cross-checked against Mplus Demo with the same ten imputed datasets | `validation/mplus-demo/prepare_continuous_mi_validation_files.R` |
+| 3 | Continuous multiple-group / invariance models | Planned next validation target | -- |
+| 4 | Ordinal survey SEM | Cross-checked against Mplus Demo on simulated data and ESS4 GB | `validation/mplus-demo/prepare_validation_files.R`, `validation/mplus-demo/prepare_ess4_validation_files.R` |
+| 5 | Ordinal survey SEM with multiple imputation | Cross-checked against Mplus Demo with the same ten imputed datasets | `validation/mplus-demo/prepare_ordinal_mi_validation_files.R` |
+| 6 | Ordinal multiple-group / invariance models | Cross-checked against Mplus Demo | `validation/mplus-demo/prepare_ordinal_group_validation_files.R` |
+| 7 | Ordinal multiple-group / invariance models with multiple imputation | Cross-checked against Mplus Demo | `validation/mplus-demo/prepare_ordinal_group_mi_validation_files.R` |
+
+The detailed Mplus Demo workflows live in `validation/mplus-demo/`; see
+`validation/mplus-demo/README.md` for run commands and
+`validation/mplus-demo/VALIDATION.md` for recorded comparison results. For
+WLSMV, the Mplus fit block is compared primarily with lavaan's scaled fit
+measures. lavaan's additional robust CFI, TLI, and RMSEA are treated as
+sensitivity checks rather than direct Mplus targets.
