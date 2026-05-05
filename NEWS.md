@@ -103,6 +103,10 @@ endorsed by the original author/maintainer.
 * Stores ordinal survey metadata for `lavaan.survey.mi` objects in
   `attr(fit, "lavaan.survey.info")` as the single source of truth, with a
   legacy fallback for older objects.
+* Renames the ordinal multiple-imputation/group vignette source file so that
+  its tangled R output no longer shares the `ordinal-survey-sem` prefix. This
+  avoids duplicate tangle-output detection in `tools::testInstalledPackage()`
+  on Windows.
 * Removes the unused experimental `cluster` argument from
   `lavaan.survey.ordinal()`; cluster and strata information continue to come
   from the supplied `survey` design or replicate design.
