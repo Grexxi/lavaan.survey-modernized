@@ -28,6 +28,10 @@ The workflow creates several sets of files:
 5. `ordinal_group_complex.inp` plus `ordinal_group_complex.dat`, a simulated
    four-category ordinal multiple-group CFA dataset with loading, threshold,
    and intercept invariance plus weights, clusters, and strata.
+6. `ordinal_group_mi_complex.inp` plus ten imputed `.dat` files, a simulated
+   four-category ordinal multiple-group CFA dataset with artificial missingness,
+   multiple imputation, loading/threshold/intercept invariance, weights,
+   clusters, and strata.
 
 The second and fifth datasets are direct comparison targets for
 `lavaan.survey.ordinal()`.
@@ -47,6 +51,9 @@ The ordinal multiple-imputation workflow is a validation target for
 The ordinal multiple-group workflow is a validation target for
 `lavaan.survey.ordinal()` with grouped ordered indicators and measurement
 invariance constraints.
+
+The ordinal multiple-group multiple-imputation workflow combines the previous
+two validation targets.
 
 ## Prepare files and lavaan.survey results
 
@@ -80,6 +87,12 @@ For the ordinal multiple-group validation, run:
 source("validation/mplus-demo/prepare_ordinal_group_validation_files.R")
 ```
 
+For the ordinal multiple-group multiple-imputation validation, run:
+
+```r
+source("validation/mplus-demo/prepare_ordinal_group_mi_validation_files.R")
+```
+
 This writes:
 
 - `ex5.10.dat`
@@ -102,6 +115,11 @@ This writes:
 - `ordinal_group_complex.inp`
 - `ordinal_group_lavaan_survey_parameters.csv`
 - `ordinal_group_lavaan_survey_fit.csv`
+- `ordinal_group_mi_imp01.dat` through `ordinal_group_mi_imp10.dat`
+- `ordinal_group_mi_implist.dat`
+- `ordinal_group_mi_complex.inp`
+- `ordinal_group_mi_lavaan_survey_parameters.csv`
+- `ordinal_group_mi_lavaan_survey_fit.csv`
 
 ## Run Mplus Demo
 
@@ -133,6 +151,12 @@ For the ordinal multiple-group validation:
 
 ```sh
 mpdemo ordinal_group_complex.inp
+```
+
+For the ordinal multiple-group multiple-imputation validation:
+
+```sh
+mpdemo ordinal_group_mi_complex.inp
 ```
 
 You can also run the official Mplus example sanity check:
@@ -173,6 +197,12 @@ For the ordinal multiple-group validation:
 source("validation/mplus-demo/compare_mplus_ordinal_group_output.R")
 ```
 
+For the ordinal multiple-group multiple-imputation validation:
+
+```r
+source("validation/mplus-demo/compare_mplus_ordinal_group_mi_output.R")
+```
+
 The comparison script uses `MplusAutomation` if available:
 
 ```r
@@ -188,6 +218,7 @@ It writes:
 - workflow-specific comparison files such as
   `ordinal_group_mplus_lavaan_parameter_comparison.csv` and
   `ordinal_group_mplus_lavaan_fit_comparison.csv`
+  or `ordinal_group_mi_mplus_lavaan_parameter_comparison.csv`
 
 Do not expect exact equality. The main target is close agreement in loadings,
 thresholds, factor variances/covariances, and the overall pattern of fit. For
