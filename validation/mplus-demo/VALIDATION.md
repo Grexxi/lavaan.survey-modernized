@@ -32,6 +32,7 @@ new ordinal workflow:
 | 5 | Ordinal survey SEM with multiple imputation | Cross-checked against Mplus Demo. |
 | 6 | Ordinal multiple-group / invariance models | Cross-checked against Mplus Demo. |
 | 7 | Ordinal multiple-group / invariance models with multiple imputation | Cross-checked against Mplus Demo. |
+| 8 | Mixed ordinal/continuous multiple-group models with multiple imputation | Diagnostic workflow runs in Mplus Demo and compares pooled sample statistics with experimental Rubin parameter pooling. |
 
 
 ## Validation 1: Continuous Survey SEM
@@ -733,6 +734,167 @@ checks ordered indicators, grouping, invariance constraints, complex survey
 correction, and multiple imputation together. The parameter agreement is strong
 given that the two programs summarize MI fit differently.
 
+## Validation 8: Mixed Ordinal/Continuous Multiple-Group MI Survey CFA
+
+This diagnostic extends the mixed-indicator proof of concept to the hardest
+case currently supported by the package: two ordered indicators, two continuous
+indicators, two groups, loading/threshold/intercept invariance, artificial
+missingness, ten imputations, and a complex survey design.
+
+Artificial missingness is introduced in:
+
+```text
+y2  MAR, depending on y1 and group
+x2  MAR, depending on x1 and weight
+```
+
+The observed missing proportions are:
+
+| Variable | Missing proportion |
+| --- | ---: |
+| y1 | 0.000 |
+| y2 | 0.255 |
+| x1 | 0.000 |
+| x2 | 0.194 |
+
+The ordered response is imputed with proportional-odds imputation (`polr`), and
+the continuous response is imputed with predictive mean matching (`pmm`). The
+same ten completed datasets are then analyzed by `lavaan.survey.ordinal()` and
+Mplus Demo.
+
+### Commands
+
+Prepare the imputed datasets, Mplus input, and `lavaan.survey.ordinal()`
+results:
+
+```r
+source("validation/mplus-demo/prepare_mixed_group_mi_validation_files.R")
+```
+
+Run Mplus Demo from `validation/mplus-demo`:
+
+```sh
+/Applications/MplusDemo/mpdemo mixed_group_mi_complex.inp
+```
+
+Parse and compare the output:
+
+```r
+source("validation/mplus-demo/compare_mplus_mixed_group_mi_output.R")
+```
+
+### Mplus Status
+
+Mplus Demo successfully fits the model with:
+
+| Quantity | Value |
+| --- | ---: |
+| Requested imputations | 10 |
+| Completed imputations | 10 |
+| Dependent variables | 4 |
+| Groups | 2 |
+| Free parameters | 18 |
+
+This means the Mplus Demo limit is not the blocker for the mixed
+multiple-group MI validation.
+
+### Fit Measures
+
+The mixed MI workflow now writes both lavaan algorithms:
+
+- `parameter_pooling`: the Mplus-nearer mixed-MI default under the `auto`
+  settings, fitting each imputation with lavaan sampling weights and pooling
+  parameters with Rubin's rules.
+- `sample_statistics`: the original sensitivity path, pooling WLS sample
+  statistics and their design-based covariance matrix before one refit.
+
+| Measure | lavaan sample-stat scaled | lavaan parameter-pooling mean | Mplus WLSMV imputation mean |
+| --- | ---: | ---: | ---: |
+| Chi-square | 88.606 | 13.273 | 12.848 |
+| df | 10 | 10 | 10 |
+| p-value | 0.000 | -- | -- |
+| CFI | 0.909 | 0.9958 | 0.997 |
+| TLI | 0.891 | -- | 0.996 |
+| RMSEA | 0.165 | 0.0317 | 0.030 |
+| SRMR | 0.0271 | 0.0275 | 0.026 |
+
+### Parameter Agreement
+
+The comparison matched all 22 selected unstandardized loading, threshold,
+intercept, and factor-variance parameters. Agreement is not adequate for this
+to count as a passed external validation for the default sample-statistic
+algorithm.
+
+| Quantity | Value |
+| --- | ---: |
+| Matched parameters | 22 |
+| Maximum absolute estimate difference | 0.4790 |
+| Maximum absolute standard error difference | 0.0350 |
+
+Largest estimate differences:
+
+| Parameter | lavaan.survey.ordinal | Mplus Demo | Mplus - lavaan |
+| --- | ---: | ---: | ---: |
+| `boys: x1 ~ 1` | -0.3390 | 0.1400 | 0.4790 |
+| `girls: x1 ~ 1` | -0.3390 | 0.1400 | 0.4790 |
+| `boys: x2 ~ 1` | 0.1192 | -0.2680 | -0.3872 |
+| `girls: x2 ~ 1` | 0.1192 | -0.2680 | -0.3872 |
+| `girls: y1 | t2` | 0.0004 | 0.2790 | 0.2786 |
+
+Largest standard-error differences:
+
+| Parameter | lavaan.survey.ordinal | Mplus Demo | Mplus - lavaan |
+| --- | ---: | ---: | ---: |
+| `girls: f ~~ f` | 0.0960 | 0.1310 | 0.0350 |
+| `boys: f =~ y2` | 0.0677 | 0.0590 | -0.0087 |
+| `girls: f =~ y2` | 0.0677 | 0.0590 | -0.0087 |
+| `boys: f =~ x1` | 0.0706 | 0.0620 | -0.0086 |
+| `girls: f =~ x1` | 0.0706 | 0.0620 | -0.0086 |
+
+The experimental parameter-pooling path is much closer to Mplus:
+
+| Quantity | Value |
+| --- | ---: |
+| Matched free parameters | 20 |
+| Maximum absolute estimate difference | 0.0221 |
+| Maximum absolute standard error difference | 0.0109 |
+
+Largest estimate differences for parameter pooling:
+
+| Parameter | lavaan parameter pooling | Mplus Demo | Mplus - lavaan |
+| --- | ---: | ---: | ---: |
+| `boys: f =~ x1` | 0.9341 | 0.9120 | -0.0221 |
+| `girls: f =~ x1` | 0.9341 | 0.9120 | -0.0221 |
+| `boys: y1 | t2` | 0.3008 | 0.2790 | -0.0218 |
+| `girls: y1 | t2` | 0.3008 | 0.2790 | -0.0218 |
+| `boys: y1 | t1` | -0.6439 | -0.6280 | 0.0159 |
+
+Largest standard-error differences for parameter pooling:
+
+| Parameter | lavaan parameter pooling | Mplus Demo | Mplus - lavaan |
+| --- | ---: | ---: | ---: |
+| `girls: f ~~ f` | 0.1419 | 0.1310 | -0.0109 |
+| `boys: y2 | t2` | 0.0778 | 0.0670 | -0.0108 |
+| `girls: y2 | t2` | 0.0778 | 0.0670 | -0.0108 |
+| `boys: f ~~ f` | 0.0601 | 0.0510 | -0.0091 |
+| `boys: y2 | t1` | 0.0778 | 0.0860 | 0.0082 |
+
+### Interpretation
+
+This is now a useful fork in the evidence rather than a simple failure. Mplus
+fits the intended mixed, grouped, imputed, complex-survey model and reports
+pooled imputation-results. The default `lavaan.survey.ordinal()` algorithm
+pools the WLS sample statistics and their design-based covariance matrix first,
+then fits one lavaan model. For all-ordinal MI examples this approximation
+matched Mplus closely, but in this mixed multiple-group case the distinction is
+substantive.
+
+The experimental parameter-pooling path is much closer to Mplus for both
+parameter estimates and fit-measure means. It should still be treated as
+experimental because it currently mirrors Mplus's imputation layer more closely
+than its full complex-survey correction layer, but it gives us a practical,
+testable path for mixed ordinal/continuous MI models.
+
 ## Files Produced Locally
 
 The scripts produce these generated files, which are intentionally ignored by
@@ -799,6 +961,21 @@ Git:
 - `ordinal_group_mi_mplus_parameters_raw.csv`
 - `ordinal_group_mi_mplus_lavaan_fit_comparison.csv`
 - `ordinal_group_mi_mplus_lavaan_parameter_comparison.csv`
+- `mixed_group_mi_imp01.dat` through `mixed_group_mi_imp10.dat`
+- `mixed_group_mi_implist.dat`
+- `mixed_group_mi_complex.inp`
+- `mixed_group_mi_complex.out`
+- `mixed_group_mi_missing_summary.csv`
+- `mixed_group_mi_lavaan_survey_parameters.csv`
+- `mixed_group_mi_lavaan_survey_fit.csv`
+- `mixed_group_mi_lavaan_survey_parameters_parameter_pooling.csv`
+- `mixed_group_mi_lavaan_survey_fit_parameter_pooling.csv`
+- `mixed_group_mi_mplus_fit_summary.csv`
+- `mixed_group_mi_mplus_parameters_raw.csv`
+- `mixed_group_mi_mplus_lavaan_fit_comparison.csv`
+- `mixed_group_mi_mplus_lavaan_parameter_comparison.csv`
+- `mixed_group_mi_mplus_lavaan_parameter_comparison_parameter_pooling.csv`
+- `mixed_group_mi_mplus_lavaan_parameter_comparison_all_algorithms.csv`
 
 ## References
 

@@ -11,7 +11,9 @@ package.
 
 This 1.2.0 modernization snapshot updates the original package for current
 `lavaan` versions and adds initial support for ordinal survey SEM through
-`lavaan.survey.ordinal()`.
+`lavaan.survey.ordinal()`. The main `lavaan.survey()` wrapper now recognizes
+ordinal `lavaan` fits and dispatches to the ordinal or mixed
+ordinal/continuous path automatically.
 
 ## Installation
 
@@ -85,7 +87,11 @@ clusters, and strata.
 ## Ordinal SEM with complex survey designs
 
 For ordinal indicators, fit the naive ordinal model first with `lavaan`, then
-pass the fitted object and the survey design to `lavaan.survey.ordinal()`.
+pass the fitted object and the survey design to `lavaan.survey()`. If the
+`lavaan` fit contains ordered variables, `lavaan.survey()` automatically calls
+the ordinal survey implementation. You can still call
+`lavaan.survey.ordinal()` directly when you want the explicit lower-level
+function.
 
 ```r
 items <- paste0("v", 1:10)
@@ -110,7 +116,7 @@ des <- svydesign(
   nest = TRUE
 )
 
-fit_svy <- lavaan.survey.ordinal(
+fit_svy <- lavaan.survey(
   lavaan.fit = fit_naive,
   survey.design = des,
   estimator = "WLSMV"
@@ -129,10 +135,10 @@ estimated from the replicate weights.
 `lavaan.survey.ordinal()` also accepts a survey design whose `data` argument is
 a `mitools::imputationList`. Fit the naive ordinal `lavaan` model on one
 completed dataset, then pass the imputed survey design to
-`lavaan.survey.ordinal()`. Thresholds, polychoric correlations, and their
-design-based covariance matrix are pooled across imputations. The same workflow
-can be used with multiple-group ordinal models, including loading and threshold
-invariance constraints.
+`lavaan.survey()` or `lavaan.survey.ordinal()`. Thresholds, polychoric
+correlations, and their design-based covariance matrix are pooled across
+imputations. The same workflow can be used with multiple-group ordinal models,
+including loading and threshold invariance constraints.
 
 ```r
 library(mitools)
@@ -155,7 +161,7 @@ fit_imp <- cfa(
   estimator = "WLSMV"
 )
 
-fit_svy_imp <- lavaan.survey.ordinal(fit_imp, des_imp)
+fit_svy_imp <- lavaan.survey(fit_imp, des_imp)
 summary(fit_svy_imp, fit.measures = TRUE, standardized = TRUE)
 ```
 
@@ -173,7 +179,7 @@ fit_group <- cfa(
   estimator = "WLSMV"
 )
 
-fit_group_svy <- lavaan.survey.ordinal(fit_group, des)
+fit_group_svy <- lavaan.survey(fit_group, des)
 summary(fit_group_svy, fit.measures = TRUE, standardized = TRUE)
 ```
 
@@ -192,7 +198,7 @@ fit_scalar <- cfa(
   estimator = "WLSMV"
 )
 
-fit_scalar_svy <- lavaan.survey.ordinal(fit_scalar, des)
+fit_scalar_svy <- lavaan.survey(fit_scalar, des)
 summary(fit_scalar_svy, fit.measures = TRUE, standardized = TRUE)
 ```
 
@@ -210,10 +216,19 @@ information, multiple imputation, multiple-group CFA, and equality constraints.
 
 ## Current limitations
 
-`lavaan.survey.ordinal()` is an initial implementation. It currently supports
+`lavaan.survey.ordinal()` is an initial implementation. It supports
 single-group and multiple-group models where all observed model variables are
-ordered. Mixed continuous/ordinal observed-variable sets are not yet implemented
-for the ordinal workflow.
+ordered. Mixed continuous/ordinal observed-variable sets have an experimental
+single-group and multiple-group proof-of-concept path, including multiple
+imputation. The mixed multiple-group MI path now has an Mplus Demo diagnostic
+workflow and two algorithms: the Mplus-nearer parameter-pooling approach and
+the original pooled-statistic approach. For mixed MI models, the Mplus-nearer
+path is the default via `point.wls = "auto"` and `mi.pooling = "auto"`; the
+original pooled-statistic algorithm remains available with
+`point.wls = "design", mi.pooling = "sample.statistics"` for sensitivity
+checks. This path should still be treated as experimental, but the
+parameter-pooling diagnostic is now much closer to Mplus `TYPE = IMPUTATION` for
+the hardest mixed case.
 
 ## Package checks
 
@@ -237,6 +252,7 @@ new ordinal workflow:
 | 5 | Ordinal survey SEM with multiple imputation | Cross-checked against Mplus Demo with the same ten imputed datasets | `validation/mplus-demo/prepare_ordinal_mi_validation_files.R` |
 | 6 | Ordinal multiple-group / invariance models | Cross-checked against Mplus Demo | `validation/mplus-demo/prepare_ordinal_group_validation_files.R` |
 | 7 | Ordinal multiple-group / invariance models with multiple imputation | Cross-checked against Mplus Demo | `validation/mplus-demo/prepare_ordinal_group_mi_validation_files.R` |
+| 8 | Mixed ordinal/continuous multiple-group models with multiple imputation | Diagnostic Mplus Demo workflow compares pooled sample statistics against experimental Rubin parameter pooling; the parameter-pooling path is much closer to Mplus `TYPE = IMPUTATION` | `validation/mplus-demo/prepare_mixed_group_mi_validation_files.R` |
 
 The detailed Mplus Demo workflows live in `validation/mplus-demo/`; see
 `validation/mplus-demo/README.md` for run commands and

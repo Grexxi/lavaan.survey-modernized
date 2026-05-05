@@ -26,7 +26,8 @@
 \usage{
 lavaan.survey(lavaan.fit, survey.design, 
 	     estimator=c("MLM", "MLMV", "MLMVS", "WLS", "DWLS", "ML"),
-	     estimator.gamma=c("default","Yuan-Bentler"))
+	     estimator.gamma=c("default","Yuan-Bentler"),
+	     ordered=NULL, ...)
 	 
 
 }
@@ -53,8 +54,11 @@ lavaan.survey(lavaan.fit, survey.design,
    		how standard errors are calculated, and how the test statistic and 
    		all measures derived from it are adjusted. See \code{\link{lavaan}}.
    		
- 		The default estimator is MLM. It is recommended to use one
-		of the ML estimators.
+ 		For continuous models, the default estimator is MLM and it is
+		recommended to use one of the ML estimators. If \code{lavaan.survey}
+		dispatches to the ordinal or mixed ordinal/continuous path, the
+		ordinal choices \code{"WLSMV"} and \code{"DWLS"} are available and
+		the default is \code{"WLSMV"}.
    }
    \item{estimator.gamma}{
 	Whether to use the usual estimator of Gamma as given by \code{svyvar} (the variance-covariance
@@ -62,12 +66,34 @@ lavaan.survey(lavaan.fit, survey.design,
 	of smoothing or adjustment. Currently the only other option is the
 	Yuan-Bentler (1998) adjustment based on model residuals.
    }
+   \item{ordered}{
+	Optional logical or character vector controlling the ordinal survey
+	path. If \code{NULL}, \code{lavaan.survey} inspects \code{lavaan.fit}
+	and dispatches to \code{\link{lavaan.survey.ordinal}} when the fitted
+	model contains ordered observed variables. If \code{TRUE}, ordered
+	variables are inferred from \code{lavaan.fit}. If a character vector is
+	supplied, it is passed as the ordered-variable set. If \code{FALSE},
+	the continuous path is used.
+   }
+   \item{...}{
+	Additional arguments passed to \code{\link{lavaan.survey.ordinal}}
+	when the ordinal or mixed ordinal/continuous path is used. Useful
+	arguments include \code{rep.type}, \code{replicates},
+	\code{point.wls}, and \code{mi.pooling}.
+   }
 }
 \details{
 	The user specifies a complex sampling design with the \pkg{survey} package's
 	\code{\link{svydesign}} or \code{\link{svrepdesign}} function, and a
 	structural equation model with
 	\code{\link{lavaan}}.
+
+	 \code{lavaan.survey} is the main entry point. For continuous observed
+	variables it uses the original continuous survey SEM implementation
+	described below. If the fitted \pkg{lavaan} object contains ordered
+	observed variables, or if \code{ordered} is supplied, it dispatches to
+	\code{\link{lavaan.survey.ordinal}}. The ordinal path handles all-ordinal
+	models and an experimental mixed ordinal/continuous path.
 	
 	 \code{lavaan.survey} follows these steps:
 	\enumerate{
@@ -103,7 +129,9 @@ lavaan.survey(lavaan.fit, survey.design,
 	standard errors, \code{vcov} matrix, chi-square statistic, and fit measures 
 	based on the chi-square take into account the complex survey 
 	design. Several methods are available for \code{\linkS4class{lavaan}} 
-	objects, including a \code{summary} method.}
+	objects, including a \code{summary} method. For mixed ordinal/continuous
+	multiple-imputation models using parameter pooling, the return value is
+	an object of class \code{lavaan.survey.mi}.}
 \references{
 Asparouhov T (2005). Sampling Weights in Latent Variable Modeling. Structural 
   Equation Modeling, 12(3), 411-434.
@@ -167,8 +195,10 @@ Yuan K, Bentler P (1998). Normal Theory Based Test Statistics in Structural Equa
   In such cases \code{lavaan.survey} checks explicitly whether the covariance matrix
   of the parameter estimates is still positive definite and produces a warning otherwise. 
 
-    3) This function handles models for continuous observed variables. For
-    ordinal observed variables, use \code{\link{lavaan.survey.ordinal}}.
+    3) This function handles models for continuous observed variables directly.
+    If ordered observed variables are present in \code{lavaan.fit}, it
+    dispatches to \code{\link{lavaan.survey.ordinal}}. The ordinal function can
+    also still be called directly.
 }
 
 %% ~Make other sections like Warning with \section{Warning }{....} ~

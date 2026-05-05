@@ -10,7 +10,9 @@
 \usage{
 lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
                       estimator = c("WLSMV", "DWLS"),
-                      rep.type = "auto", replicates = NULL)
+                      rep.type = "auto", replicates = NULL,
+                      point.wls = c("auto", "lavaan", "design"),
+                      mi.pooling = c("auto", "parameters", "sample.statistics"))
 }
 \arguments{
   \item{lavaan.fit}{
@@ -39,18 +41,48 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
     Optional number of bootstrap replicates, passed through to
     \code{\link{as.svrepdesign}} for bootstrap-type replicate designs.
   }
+  \item{point.wls}{
+    Controls the WLS weight matrix used for point estimation. The default
+    \code{"auto"} uses the inverse diagonal of the design-based Gamma matrix
+    for all-ordinal models and lavaan's usual WLS weight matrix for mixed
+    ordinal/continuous models. Explicit \code{"design"} and \code{"lavaan"}
+    values are available for sensitivity checks.
+  }
+  \item{mi.pooling}{
+    Multiple-imputation pooling strategy for \code{svyimputationList} designs.
+    The default \code{"auto"} uses pooled sample statistics for all-ordinal MI
+    models and Rubin parameter pooling for mixed ordinal/continuous MI models.
+    \code{"sample.statistics"} pools thresholds, means, covariance/correlation
+    statistics, and their design-based covariance matrix before refitting one
+    model. \code{"parameters"} fits each imputed dataset separately and pools
+    free parameters and their covariance matrix using Rubin's rules. With
+    \code{point.wls = "lavaan"}, this parameter-pooling path analyzes each
+    imputation with lavaan sampling weights, which is closer to Mplus
+    \code{TYPE = IMPUTATION}.
+  }
 }
 \details{
-  This function is an initial ordinal implementation. It currently supports
-  single-group and multiple-group models where all observed model variables are
-  ordered. If \code{survey.design} is a \code{svyimputationList}, thresholds,
-  polychoric correlations, and their design-based covariance matrix are pooled
-  across imputations. This also applies to multiple-group ordinal models,
-  including loading and threshold invariance constraints. Mixed
-  continuous/ordinal observed-variable sets are not yet implemented.
+  This function is an initial ordinal implementation. It supports single-group
+  and multiple-group models where all observed model variables are ordered. If
+  \code{survey.design} is a \code{svyimputationList}, thresholds, polychoric
+  correlations, and their design-based covariance matrix are pooled across
+  imputations. This also applies to multiple-group ordinal models, including
+  loading and threshold invariance constraints. Mixed continuous/ordinal
+  observed-variable sets have an experimental single-group and multiple-group
+  proof-of-concept path, including multiple imputation. For these mixed models,
+  the defaults use a Mplus-nearer parameter-pooling path for mixed MI models,
+  while \code{point.wls = "design"} and \code{mi.pooling = "sample.statistics"}
+  keep the original design-based pooled-statistic implementation available for
+  sensitivity checks. The selected mode, MI pooling strategy, and point WLS
+  strategy are printed when the function runs and stored as
+  \code{attr(fit, "lavaan.survey.info")}.
 }
 \value{
-  An object of class \code{\linkS4class{lavaan}}.
+  An object of class \code{\linkS4class{lavaan}} for
+  \code{mi.pooling = "sample.statistics"} or non-MI designs. For
+  \code{mi.pooling = "parameters"} and for mixed MI models under the
+  \code{"auto"} default, a \code{lavaan.survey.mi} object with \code{coef},
+  \code{vcov}, \code{print}, and \code{summary} methods is returned.
 }
 \seealso{
   \code{\link{lavaan.survey}},
