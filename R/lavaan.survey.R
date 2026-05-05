@@ -702,7 +702,11 @@ pool.ordinal.mi.parameters <- function(lavaan.fit, rep.design, ordered,
                                    estimator=estimator))
   }
 
-  pooled <- pool.lavaan.mi.parameters(fits, vcov.list=vcov.list)
+  pooled <- pool.lavaan.mi.parameters(
+    fits,
+    vcov.list=vcov.list,
+    df.complete=get.mi.complete.df(rep.design)
+  )
   pooled$call <- lavInspect(lavaan.fit, "call")
   pooled$ordered <- ordered
   pooled$estimator <- estimator
@@ -810,7 +814,27 @@ infer.sampling.weight.name <- function(design, data) {
   NULL
 }
 
-pool.lavaan.mi.parameters <- function(fits, vcov.list=NULL) {
+get.mi.complete.df <- function(rep.design) {
+  designs <- if(inherits(rep.design, "svyimputationList")) {
+    rep.design$designs
+  }
+  else {
+    list(rep.design)
+  }
+  dfs <- vapply(designs, function(design) {
+    out <- try(survey::degf(design), silent=TRUE)
+    if(inherits(out, "try-error") || length(out) != 1L || is.na(out)) {
+      Inf
+    }
+    else {
+      as.numeric(out)
+    }
+  }, numeric(1))
+  finite.dfs <- dfs[is.finite(dfs)]
+  if(length(finite.dfs)) min(finite.dfs) else Inf
+}
+
+pool.lavaan.mi.parameters <- function(fits, vcov.list=NULL, df.complete=Inf) {
   if(length(fits) == 0L) {
     stop("At least one fitted lavaan object is required for MI parameter pooling.")
   }
@@ -858,7 +882,8 @@ pool.lavaan.mi.parameters <- function(fits, vcov.list=NULL) {
               vcov.between=vcov.between,
               fits=fits,
               fit.measures=fit.measures,
-              m=length(fits))
+              m=length(fits),
+              df.complete=df.complete)
   class(out) <- "lavaan.survey.mi"
   out
 }
@@ -902,11 +927,16 @@ print.lavaan.survey.mi <- function(x, ...) {
 
 summary.lavaan.survey.mi <- function(object, ...) {
   se <- sqrt(diag(object$vcov))
-  z <- object$coef / se
-  p <- 2 * stats::pnorm(abs(z), lower.tail=FALSE)
+  t.value <- object$coef / se
+  df <- barnard.rubin.df(object)
+  p <- 2 * stats::pt(abs(t.value), df=df, lower.tail=FALSE)
+  normal.ref <- is.infinite(df)
+  p[normal.ref] <- 2 * stats::pnorm(abs(t.value[normal.ref]),
+                                    lower.tail=FALSE)
   out <- data.frame(Estimate=object$coef,
                     Std.Err=se,
-                    z.value=z,
+                    t.value=t.value,
+                    df=df,
                     P.value=p,
                     check.names=FALSE)
   print(out)
@@ -915,6 +945,53 @@ summary.lavaan.survey.mi <- function(object, ...) {
     print(object$fit.measures)
   }
   invisible(out)
+}
+
+barnard.rubin.df <- function(object) {
+  npar <- length(object$coef)
+  ref.names <- names(object$coef)
+  if(is.null(object$vcov.within) || is.null(object$vcov.between) ||
+     is.null(object$vcov) || is.null(object$m) || object$m <= 1L) {
+    out <- rep(object$df.complete %||% Inf, npar)
+    names(out) <- ref.names
+    return(out)
+  }
+
+  m <- object$m
+  total.var <- diag(object$vcov)
+  between.var <- diag(object$vcov.between)
+  lambda <- ((m + 1) / m) * between.var / total.var
+  lambda[!is.finite(lambda)] <- NA_real_
+  lambda <- pmin(pmax(lambda, 0), 1)
+
+  df.old <- rep(Inf, length(lambda))
+  has.missing.info <- !is.na(lambda) & lambda > .Machine$double.eps
+  df.old[has.missing.info] <- (m - 1) / (lambda[has.missing.info]^2)
+
+  df.complete <- object$df.complete %||% Inf
+  if(is.finite(df.complete)) {
+    df.obs <- ((df.complete + 1) / (df.complete + 3)) *
+      df.complete * (1 - lambda)
+    out <- combine.df(df.old, df.obs)
+  }
+  else {
+    out <- df.old
+  }
+
+  out[is.na(lambda) | out <= .Machine$double.eps] <- NA_real_
+  names(out) <- ref.names
+  out
+}
+
+combine.df <- function(df1, df2) {
+  out <- (df1 * df2) / (df1 + df2)
+  old.inf <- is.infinite(df1) & is.finite(df2)
+  obs.inf <- is.finite(df1) & is.infinite(df2)
+  both.inf <- is.infinite(df1) & is.infinite(df2)
+  out[old.inf] <- df2[old.inf]
+  out[obs.inf] <- df1[obs.inf]
+  out[both.inf] <- Inf
+  out
 }
 
 `%||%` <- function(x, y) {

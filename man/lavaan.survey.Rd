@@ -131,7 +131,9 @@ lavaan.survey(lavaan.fit, survey.design,
 	design. Several methods are available for \code{\linkS4class{lavaan}} 
 	objects, including a \code{summary} method. For mixed ordinal/continuous
 	multiple-imputation models using parameter pooling, the return value is
-	an object of class \code{lavaan.survey.mi}.}
+	an object of class \code{lavaan.survey.mi}; its summary method reports
+	Barnard-Rubin degrees of freedom for Rubin-pooled parameter tests when
+	complete-data survey design degrees of freedom are available.}
 \references{
 Asparouhov T (2005). Sampling Weights in Latent Variable Modeling. Structural 
   Equation Modeling, 12(3), 411-434.

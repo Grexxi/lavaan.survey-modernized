@@ -96,6 +96,10 @@ endorsed by the original author/maintainer.
   refit failures now report the imputation index, replicate-based
   within-imputation covariance estimation warns when many replicate refits
   fail, and explicit `vcov.list` inputs must match the number of imputed fits.
+* Uses Barnard-Rubin degrees of freedom in `summary.lavaan.survey.mi()` for
+  Rubin-pooled parameter tests, combining the imputation degrees of freedom
+  with the complete-data degrees of freedom from the survey design when
+  available.
 * Removes the unused experimental `cluster` argument from
   `lavaan.survey.ordinal()`; cluster and strata information continue to come
   from the supplied `survey` design or replicate design.
