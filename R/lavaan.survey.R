@@ -33,9 +33,9 @@ lavaan.survey <-
     if(ngroups > 1) {
       # Use survey::subset to create data groups
       survey.design.g <- 
-        subset.survey.group(survey.design,
-                            lavInspect(lavaan.fit, "group"),
-                            lavInspect(lavaan.fit, "group.label")[[g]])
+        survey_subset_by_group(survey.design,
+                               lavInspect(lavaan.fit, "group"),
+                               lavInspect(lavaan.fit, "group.label")[[g]])
     } 
     else { # In case of no groups, just use the original survey design object.
       survey.design.g <- survey.design  
@@ -296,7 +296,7 @@ lavaan.survey.ordinal <-
   new.call$WLS.V <- WLS.V
   new.call$NACOV <- Gamma
 
-  eval(as.call(new.call))
+  eval(as.call(new.call), envir=parent.frame())
 }
 
 get.ordinal.survey.stats <- function(rep.design, ov.names, ordered,
@@ -581,7 +581,7 @@ get.ordinal.wls.obs <- function(sample.stats) {
 
 # Safely subset survey designs by lavaan group labels. Avoid parse(text=...),
 # because group labels can contain quotes or other non-syntactic characters.
-subset.survey.group <- function(survey.design, group.var, group.label) {
+survey_subset_by_group <- function(survey.design, group.var, group.label) {
   eval(substitute(
     subset(survey.design, get(GROUPVAR) == GROUPLABEL),
     list(GROUPVAR=group.var, GROUPLABEL=group.label)

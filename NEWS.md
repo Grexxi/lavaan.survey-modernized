@@ -59,6 +59,9 @@ endorsed by the original author/maintainer.
   names.
 * Replaced legacy `lavaanNames()` usage with `lavNames()` and added
   regression coverage for `pval.pFsum()` in constrained multiple-group models.
+* Renamed an internal survey subsetting helper to avoid S3-style naming
+  ambiguity and aligned ordinal refitting with the continuous refit
+  evaluation environment.
 * Updated legacy numerical tolerances for current `lavaan` and `survey`
   versions.
 
