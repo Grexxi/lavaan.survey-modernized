@@ -213,9 +213,9 @@ information, multiple imputation, multiple-group CFA, and equality constraints.
 `lavaan.survey.ordinal()` is an initial implementation. It supports
 single-group and multiple-group models where all observed model variables are
 ordered. Mixed continuous/ordinal observed-variable sets have an experimental
-single-group and multiple-group proof-of-concept path, plus single-group
-multiple imputation; multiple-group multiple-imputation and Mplus validation
-workflows for mixed indicators still need follow-up testing.
+single-group and multiple-group proof-of-concept path, including multiple
+imputation; Mplus validation workflows for mixed indicators still need
+follow-up testing.
 
 ## Package checks
 

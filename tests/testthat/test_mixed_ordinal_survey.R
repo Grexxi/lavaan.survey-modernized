@@ -71,6 +71,44 @@ make_mixed_indicator_mi_data <- function() {
   })
 }
 
+make_mixed_indicator_group_mi_data <- function() {
+  data <- make_mixed_indicator_group_data()
+  n <- nrow(data)
+
+  set.seed(2604)
+  missing_y2 <- sample(seq_len(n), 75)
+  missing_x2 <- sample(setdiff(seq_len(n), missing_y2), 70)
+  data$y2[missing_y2] <- NA
+  data$x2[missing_x2] <- NA
+
+  lapply(seq_len(3), function(i) {
+    imputed <- data
+    set.seed(9400 + i)
+
+    for(g in levels(data$group)) {
+      missing_y2_g <- is.na(imputed$y2) & imputed$group == g
+      observed_y2_g <- imputed$y2[!is.na(imputed$y2) & imputed$group == g]
+      imputed$y2[missing_y2_g] <- sample(
+        observed_y2_g,
+        sum(missing_y2_g),
+        replace=TRUE
+      )
+
+      missing_x2_g <- is.na(imputed$x2) & imputed$group == g
+      observed_x2_g <- imputed$x2[!is.na(imputed$x2) & imputed$group == g]
+      n_missing_x2_g <- sum(missing_x2_g)
+      imputed$x2[missing_x2_g] <- sample(
+        observed_x2_g,
+        n_missing_x2_g,
+        replace=TRUE
+      ) + stats::rnorm(n_missing_x2_g, sd=0.05)
+    }
+
+    imputed$y2 <- ordered(imputed$y2, levels=levels(data$y2))
+    imputed
+  })
+}
+
 fit_mixed_indicator_model <- function(data, group=NULL, group.equal=NULL,
                                       meanstructure=NULL) {
   args <- list(
@@ -304,6 +342,90 @@ test_that("mixed MI survey models pool thresholds, means, and correlations", {
                tolerance=1e-10, check.attributes=FALSE)
   expect_equal(Gamma, expected$Gamma,
                tolerance=1e-10, check.attributes=FALSE)
+  expect_true(is.finite(lavaan::fitMeasures(fit_survey, "chisq.scaled")))
+})
+
+test_that("mixed multiple-group MI models preserve invariance constraints", {
+  skip_if_not_installed("mitools")
+
+  group_labels <- c("Girls", "Boys")
+  imputed_data <- make_mixed_indicator_group_mi_data()
+  imputation_list <- mitools::imputationList(imputed_data)
+  design <- survey::svydesign(
+    ids=~cluster,
+    strata=~stratum,
+    weights=~weight,
+    data=imputation_list,
+    nest=TRUE
+  )
+  rep_design <- survey::as.svrepdesign(
+    design,
+    type="bootstrap",
+    replicates=8
+  )
+  fit <- fit_mixed_indicator_model(
+    imputed_data[[1]],
+    group="group",
+    group.equal=c("loadings", "thresholds", "intercepts")
+  )
+
+  fit_survey <- suppressWarnings(lavaan.survey.ordinal(
+    lavaan.fit=fit,
+    survey.design=rep_design,
+    estimator="WLSMV"
+  ))
+
+  per_imputation <- lapply(
+    rep_design$designs,
+    lavaan.survey:::get.ordinal.survey.stats,
+    ov.names=c("y1", "y2", "x1", "x2"),
+    ordered=c("y1", "y2"),
+    ngroups=2,
+    group.var="group",
+    group.labels=group_labels
+  )
+  expected <- lavaan.survey:::pool.ordinal.mi.stats(
+    per_imputation,
+    ngroups=2,
+    group.labels=group_labels
+  )
+
+  sampstat <- lavaan::lavInspect(fit_survey, "sampstat")
+  Gamma <- lavaan::lavTech(fit_survey, "gamma")
+  partable <- lavaan::parTable(fit_survey)
+  constraints <- partable[partable$op == "==", ]
+  loadings <- partable[partable$op == "=~" & partable$rhs != "y1", ]
+  thresholds <- partable[partable$op == "|", ]
+  intercepts <- partable[partable$op == "~1" & partable$lhs %in% c("x1", "x2"), ]
+
+  expect_true(lavaan::lavInspect(fit_survey, "converged"))
+  expect_equal(lavaan::lavInspect(fit_survey, "ngroups"), 2)
+  expect_equal(lavaan::lavInspect(fit_survey, "nobs"),
+               unname(expected$point.stats$nobs),
+               check.attributes=FALSE)
+  expect_equal(names(expected$point.stats$wls.obs), group_labels)
+  expect_gt(nrow(constraints), 0)
+  expect_true(any(loadings$label != ""))
+  expect_true(any(thresholds$label != ""))
+  expect_true(any(intercepts$label != ""))
+
+  for(g in seq_along(group_labels)) {
+    expect_equal(names(expected$point.stats$wls.obs[[g]]),
+                 c("y1|t1", "y1|t2", "y2|t1", "y2|t2", "x1~1", "x2~1",
+                   "x1~~x1", "x2~~x2", "y1~~y2", "y1~~x1", "y1~~x2",
+                   "y2~~x1", "y2~~x2", "x1~~x2"))
+    expect_equal(unclass(as.matrix(sampstat[[g]]$cov)),
+                 unclass(as.matrix(expected$point.stats$sample.cov[[g]])),
+                 tolerance=1e-10, check.attributes=FALSE)
+    expect_equal(as.numeric(sampstat[[g]]$mean),
+                 as.numeric(expected$point.stats$sample.mean[[g]]),
+                 tolerance=1e-10, check.attributes=FALSE)
+    expect_equal(as.numeric(sampstat[[g]]$th),
+                 as.numeric(expected$point.stats$sample.th[[g]]),
+                 tolerance=1e-10, check.attributes=FALSE)
+    expect_equal(Gamma[[g]], expected$Gamma[[g]],
+                 tolerance=1e-10, check.attributes=FALSE)
+  }
   expect_true(is.finite(lavaan::fitMeasures(fit_survey, "chisq.scaled")))
 })
 
