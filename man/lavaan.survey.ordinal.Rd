@@ -12,7 +12,10 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
                       estimator = c("WLSMV", "DWLS"),
                       rep.type = "auto", replicates = NULL,
                       point.wls = c("auto", "lavaan", "design"),
-                      mi.pooling = c("auto", "parameters", "sample.statistics"))
+                      mi.pooling = c("auto", "parameters", "sample.statistics"),
+                      within.variance = c("auto", "replicate",
+                                          "lavaan.robust", "naive"),
+                      cluster = NULL)
 }
 \arguments{
   \item{lavaan.fit}{
@@ -60,6 +63,27 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
     imputation with lavaan sampling weights, which is closer to Mplus
     \code{TYPE = IMPUTATION}.
   }
+  \item{within.variance}{
+    Within-imputation variance estimator used when
+    \code{mi.pooling = "parameters"}. The default \code{"auto"} uses
+    \code{"replicate"} when replicate-weight designs are available. The
+    \code{"replicate"} option refits the lavaan model for each set of replicate
+    weights within each imputed dataset and estimates the within-imputation
+    covariance matrix with \code{\link{svrVar}}. The \code{"naive"} option uses
+    the usual lavaan covariance matrix from the sampling-weighted fit in each
+    imputation; this is faster and useful for Mplus-nearer diagnostics, but it
+    does not incorporate clusters or strata in the within-imputation covariance
+    matrix. The \code{"lavaan.robust"} option is reserved for a lavaan
+    cluster-robust fast path, but current lavaan versions do not support
+    clustered estimation together with ordered/categorical indicators, so this
+    option currently stops with an informative error.
+  }
+  \item{cluster}{
+    Optional cluster variable name intended for the future
+    \code{within.variance = "lavaan.robust"} path. It is currently accepted for
+    API clarity, but lavaan does not yet support the required ordered
+    categorical plus clustered combination.
+  }
 }
 \details{
   This function is an initial ordinal implementation. It supports single-group
@@ -71,11 +95,14 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
   observed-variable sets have an experimental single-group and multiple-group
   proof-of-concept path, including multiple imputation. For these mixed models,
   the defaults use a Mplus-nearer parameter-pooling path for mixed MI models,
-  while \code{point.wls = "design"} and \code{mi.pooling = "sample.statistics"}
-  keep the original design-based pooled-statistic implementation available for
-  sensitivity checks. The selected mode, MI pooling strategy, and point WLS
-  strategy are printed when the function runs and stored as
-  \code{attr(fit, "lavaan.survey.info")}.
+  with replicate-based within-imputation covariance estimation when replicate
+  weights are available. The faster \code{within.variance = "naive"} option is
+  available for diagnostics and Mplus-nearer comparisons. The
+  \code{point.wls = "design"} and \code{mi.pooling = "sample.statistics"}
+  options keep the original design-based pooled-statistic implementation
+  available for sensitivity checks. The selected mode, MI pooling strategy,
+  point WLS strategy, and within-imputation variance strategy are printed when
+  relevant and stored as \code{attr(fit, "lavaan.survey.info")}.
 }
 \value{
   An object of class \code{\linkS4class{lavaan}} for

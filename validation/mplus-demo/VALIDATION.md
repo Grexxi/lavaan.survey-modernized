@@ -800,11 +800,14 @@ multiple-group MI validation.
 
 ### Fit Measures
 
-The mixed MI workflow now writes both lavaan algorithms:
+The mixed MI workflow writes both lavaan algorithms:
 
-- `parameter_pooling`: the Mplus-nearer mixed-MI default under the `auto`
-  settings, fitting each imputation with lavaan sampling weights and pooling
-  parameters with Rubin's rules.
+- `parameter_pooling`: the Mplus-nearer diagnostic path, fitting each
+  imputation with lavaan sampling weights and pooling parameters with Rubin's
+  rules. The validation script sets `within.variance = "naive"` explicitly to
+  preserve comparability with the original Mplus diagnostic; the package
+  default now uses replicate-weight refits for within-imputation covariance
+  estimation when replicate weights are available.
 - `sample_statistics`: the original sensitivity path, pooling WLS sample
   statistics and their design-based covariance matrix before one refit.
 

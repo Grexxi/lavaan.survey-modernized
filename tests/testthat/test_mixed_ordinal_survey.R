@@ -499,7 +499,8 @@ test_that("mixed single-group MI models support Rubin parameter pooling", {
     survey.design=rep_design,
     estimator="WLSMV",
     point.wls="lavaan",
-    mi.pooling="parameters"
+    mi.pooling="parameters",
+    within.variance="naive"
   ))
   per_imputation <- lapply(rep_design$designs, function(design_i) {
     suppressWarnings(lavaan.survey:::fit.ordinal.weighted.lavaan(
@@ -513,12 +514,68 @@ test_that("mixed single-group MI models support Rubin parameter pooling", {
 
   expect_s3_class(fit_pooled, "lavaan.survey.mi")
   expect_equal(fit_pooled$m, length(imputed_data))
+  expect_equal(fit_pooled$within.variance, "naive")
   expect_equal(coef(fit_pooled), coef(expected), tolerance=1e-10)
   expect_equal(vcov(fit_pooled), vcov(expected), tolerance=1e-10,
                check.attributes=FALSE)
   expect_true(all(is.finite(coef(fit_pooled))))
   expect_true(all(diag(vcov(fit_pooled)) > 0))
   expect_true(all(is.finite(fit_pooled$fit.measures)))
+})
+
+test_that("mixed MI parameter pooling can use replicate within variance", {
+  skip_if_not_installed("mitools")
+
+  imputed_data <- make_mixed_indicator_mi_data()
+  imputation_list <- mitools::imputationList(imputed_data)
+  design <- survey::svydesign(
+    ids=~cluster,
+    strata=~stratum,
+    weights=~weight,
+    data=imputation_list,
+    nest=TRUE
+  )
+  rep_design <- survey::as.svrepdesign(
+    design,
+    type="bootstrap",
+    replicates=4
+  )
+  fit <- fit_mixed_indicator_model(imputed_data[[1]])
+
+  fit_pooled <- suppressWarnings(lavaan.survey.ordinal(
+    lavaan.fit=fit,
+    survey.design=rep_design,
+    estimator="WLSMV",
+    point.wls="lavaan",
+    mi.pooling="parameters",
+    within.variance="replicate"
+  ))
+  per_imputation <- lapply(rep_design$designs, function(design_i) {
+    suppressWarnings(lavaan.survey:::fit.ordinal.weighted.lavaan(
+      design=design_i,
+      lavaan.fit=fit,
+      ordered=c("y1", "y2"),
+      estimator="WLSMV"
+    ))
+  })
+  replicate.vcov <- Map(
+    lavaan.survey:::estimate.replicate.parameter.vcov,
+    design=rep_design$designs,
+    point.fit=per_imputation,
+    MoreArgs=list(lavaan.fit=fit, ordered=c("y1", "y2"), estimator="WLSMV")
+  )
+  expected <- lavaan.survey:::pool.lavaan.mi.parameters(
+    per_imputation,
+    vcov.list=replicate.vcov
+  )
+
+  expect_s3_class(fit_pooled, "lavaan.survey.mi")
+  expect_equal(fit_pooled$within.variance, "replicate")
+  expect_equal(fit_pooled$survey.info$within.variance, "replicate")
+  expect_equal(coef(fit_pooled), coef(expected), tolerance=1e-10)
+  expect_equal(vcov(fit_pooled), vcov(expected), tolerance=1e-10,
+               check.attributes=FALSE)
+  expect_true(all(diag(fit_pooled$vcov.within) >= 0))
 })
 
 test_that("mixed MI defaults to the Mplus-nearer parameter-pooling path", {
@@ -549,14 +606,17 @@ test_that("mixed MI defaults to the Mplus-nearer parameter-pooling path", {
   expect_s3_class(fit_default, "lavaan.survey.mi")
   expect_equal(fit_default$point.wls, "lavaan")
   expect_equal(fit_default$mi.pooling, "parameters")
+  expect_equal(fit_default$within.variance, "replicate")
   expect_equal(fit_default$survey.info$mode, "mixed ordinal/continuous")
   expect_equal(fit_default$survey.info$mi.pooling, "parameters")
   expect_equal(fit_default$survey.info$point.wls, "lavaan")
+  expect_equal(fit_default$survey.info$within.variance, "replicate")
   printed <- utils::capture.output(print(fit_default))
   expect_true(any(grepl("lavaan.survey.ordinal mode: mixed ordinal/continuous",
                         printed, fixed=TRUE)))
   expect_true(any(grepl("MI pooling: parameters", printed, fixed=TRUE)))
   expect_true(any(grepl("Point WLS: lavaan", printed, fixed=TRUE)))
+  expect_true(any(grepl("Within variance: replicate", printed, fixed=TRUE)))
   expect_true(all(is.finite(coef(fit_default))))
 })
 
@@ -608,6 +668,7 @@ test_that("lavaan.survey dispatches mixed MI models to parameter pooling by defa
   expect_equal(fit_wrapper$survey.info$mode, "mixed ordinal/continuous")
   expect_equal(fit_wrapper$survey.info$mi.pooling, "parameters")
   expect_equal(fit_wrapper$survey.info$point.wls, "lavaan")
+  expect_equal(fit_wrapper$survey.info$within.variance, "replicate")
 })
 
 test_that("mixed multiple-group MI models support Rubin parameter pooling", {
@@ -638,7 +699,8 @@ test_that("mixed multiple-group MI models support Rubin parameter pooling", {
     survey.design=rep_design,
     estimator="WLSMV",
     point.wls="lavaan",
-    mi.pooling="parameters"
+    mi.pooling="parameters",
+    within.variance="naive"
   ))
   per_imputation <- lapply(rep_design$designs, function(design_i) {
     suppressWarnings(lavaan.survey:::fit.ordinal.weighted.lavaan(
@@ -652,11 +714,45 @@ test_that("mixed multiple-group MI models support Rubin parameter pooling", {
 
   expect_s3_class(fit_pooled, "lavaan.survey.mi")
   expect_equal(fit_pooled$m, length(imputed_data))
+  expect_equal(fit_pooled$within.variance, "naive")
   expect_equal(coef(fit_pooled), coef(expected), tolerance=1e-10)
   expect_equal(vcov(fit_pooled), vcov(expected), tolerance=1e-10,
                check.attributes=FALSE)
   expect_true(any(grepl("\\.p", names(coef(fit_pooled)))))
   expect_true(all(diag(vcov(fit_pooled)) > 0))
+})
+
+test_that("lavaan robust within variance is guarded for ordered models", {
+  skip_if_not_installed("mitools")
+
+  imputed_data <- make_mixed_indicator_mi_data()
+  imputation_list <- mitools::imputationList(imputed_data)
+  design <- survey::svydesign(
+    ids=~cluster,
+    strata=~stratum,
+    weights=~weight,
+    data=imputation_list,
+    nest=TRUE
+  )
+  rep_design <- survey::as.svrepdesign(
+    design,
+    type="bootstrap",
+    replicates=4
+  )
+  fit <- fit_mixed_indicator_model(imputed_data[[1]])
+
+  expect_error(
+    lavaan.survey.ordinal(
+      lavaan.fit=fit,
+      survey.design=rep_design,
+      estimator="WLSMV",
+      point.wls="lavaan",
+      mi.pooling="parameters",
+      within.variance="lavaan.robust",
+      cluster="cluster"
+    ),
+    "categorical \\+ clustered estimation is not supported"
+  )
 })
 
 test_that("mixed ordered argument must be a subset of observed variables", {

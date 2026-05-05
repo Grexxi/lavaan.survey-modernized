@@ -223,8 +223,11 @@ single-group and multiple-group proof-of-concept path, including multiple
 imputation. The mixed multiple-group MI path now has an Mplus Demo diagnostic
 workflow and two algorithms: the Mplus-nearer parameter-pooling approach and
 the original pooled-statistic approach. For mixed MI models, the Mplus-nearer
-path is the default via `point.wls = "auto"` and `mi.pooling = "auto"`; the
-original pooled-statistic algorithm remains available with
+path is the default via `point.wls = "auto"` and `mi.pooling = "auto"`. Its
+within-imputation covariance matrix is estimated from replicate-weight refits
+by default when replicate weights are available. The faster diagnostic
+`within.variance = "naive"` path keeps the previous lavaan weighted-vcov
+behavior. The original pooled-statistic algorithm remains available with
 `point.wls = "design", mi.pooling = "sample.statistics"` for sensitivity
 checks. This path should still be treated as experimental, but the
 parameter-pooling diagnostic is now much closer to Mplus `TYPE = IMPUTATION` for
@@ -252,7 +255,7 @@ new ordinal workflow:
 | 5 | Ordinal survey SEM with multiple imputation | Cross-checked against Mplus Demo with the same ten imputed datasets | `validation/mplus-demo/prepare_ordinal_mi_validation_files.R` |
 | 6 | Ordinal multiple-group / invariance models | Cross-checked against Mplus Demo | `validation/mplus-demo/prepare_ordinal_group_validation_files.R` |
 | 7 | Ordinal multiple-group / invariance models with multiple imputation | Cross-checked against Mplus Demo | `validation/mplus-demo/prepare_ordinal_group_mi_validation_files.R` |
-| 8 | Mixed ordinal/continuous multiple-group models with multiple imputation | Diagnostic Mplus Demo workflow compares pooled sample statistics against experimental Rubin parameter pooling; the parameter-pooling path is much closer to Mplus `TYPE = IMPUTATION` | `validation/mplus-demo/prepare_mixed_group_mi_validation_files.R` |
+| 8 | Mixed ordinal/continuous multiple-group models with multiple imputation | Diagnostic Mplus Demo workflow compares pooled sample statistics against Rubin parameter pooling; the Mplus-nearer diagnostic uses `within.variance = "naive"`, while the package default uses replicate within-imputation covariance when available | `validation/mplus-demo/prepare_mixed_group_mi_validation_files.R` |
 
 The detailed Mplus Demo workflows live in `validation/mplus-demo/`; see
 `validation/mplus-demo/README.md` for run commands and

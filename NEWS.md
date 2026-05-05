@@ -14,9 +14,10 @@ endorsed by the original author/maintainer.
   the ordinal survey implementation.
 * Adds `lavaan.survey.ordinal()` as the direct lower-level function for ordinal
   and mixed ordinal/continuous WLSMV/DWLS survey SEM.
-* Reports the resolved survey mode, multiple-imputation pooling strategy, and
-  point-WLS strategy when ordinal or mixed models are fitted, and stores the
-  same metadata in `attr(fit, "lavaan.survey.info")`.
+* Reports the resolved survey mode, multiple-imputation pooling strategy,
+  point-WLS strategy, and, where relevant, within-imputation covariance
+  strategy when ordinal or mixed models are fitted. The same metadata are
+  stored in `attr(fit, "lavaan.survey.info")`.
 
 ## Supported workflows
 
@@ -38,27 +39,34 @@ endorsed by the original author/maintainer.
   experimental proof-of-concept path for single-group, multiple-group, and
   multiple-imputation workflows. This path delegates WLS sample-statistic
   ordering to `lavaan`.
-* For mixed ordinal/continuous multiple-imputation models, the `auto` defaults
-  use the Mplus-nearer parameter-pooling strategy:
-  `point.wls = "lavaan"` and `mi.pooling = "parameters"`. The original
-  pooled-sample-statistic strategy remains available for sensitivity checks via
-  `point.wls = "design"` and `mi.pooling = "sample.statistics"`.
+* Mixed ordinal/continuous multiple-imputation models use Rubin
+  parameter-pooling by default: `point.wls = "lavaan"` and
+  `mi.pooling = "parameters"` under the `auto` settings. Their
+  within-imputation covariance strategy is controlled by
+  `within.variance = c("auto", "replicate", "lavaan.robust", "naive")`.
+  The `auto` setting uses replicate-weight refits when available; `naive`
+  keeps a faster lavaan weighted-vcov diagnostic that is useful for
+  Mplus-nearer comparisons. The pooled-sample-statistic strategy remains
+  available for sensitivity checks via `point.wls = "design"` and
+  `mi.pooling = "sample.statistics"`.
 
 ## Validation, tests, and documentation
 
-* Adds regression tests for continuous robustness fixes, continuous
+* Regression tests cover continuous robustness fixes, continuous
   multiple-imputation pooling, ordinal survey CFA, ordinal multiple-group CFA,
   ordinal measurement invariance, ordinal multiple imputation, and mixed
   ordinal/continuous survey workflows.
-* Adds regression coverage for the two mixed-indicator algorithms:
+* Regression tests cover the two mixed-indicator algorithms:
   design-based pooled sample statistics and Mplus-nearer Rubin parameter
   pooling with lavaan WLS point-estimation weights.
-* Adds Mplus Demo validation workflows for continuous MI, ordinal MI, ordinal
-  multiple-group invariance, ordinal multiple-group MI, and mixed
+* Regression tests cover replicate-based and naive within-imputation
+  covariance estimation in mixed ordinal/continuous parameter pooling.
+* Mplus Demo validation workflows are included for continuous MI, ordinal MI,
+  ordinal multiple-group invariance, ordinal multiple-group MI, and mixed
   ordinal/continuous multiple-group MI.
-* Adds a vignette for ordinal survey SEM with multiple imputation and
+* A vignette documents ordinal survey SEM with multiple imputation and
   multiple-group models.
-* Updates the README and manual pages for the modernization fork, ordinal
+* The README and manual pages document the modernization fork, ordinal
   support, replicate designs, multiple-imputation survey designs, mixed
   workflows, and current robust lavaan test names.
 
@@ -96,5 +104,8 @@ endorsed by the original author/maintainer.
 * The Mplus Demo workflow for mixed ordinal/continuous multiple-group MI runs
   successfully and shows that the Mplus-nearer parameter-pooling strategy is
   substantially closer to Mplus `TYPE = IMPUTATION` than the original
-  pooled-statistic algorithm. This path should still be treated as a diagnostic
-  implementation until more validation examples are available.
+  pooled-statistic algorithm. The `within.variance = "naive"` setting is useful
+  for reproducing the earlier Mplus-nearer diagnostic, while the default
+  replicate-based within-imputation covariance should be preferred for
+  design-based inference. This path should still be treated as experimental
+  until more validation examples are available.

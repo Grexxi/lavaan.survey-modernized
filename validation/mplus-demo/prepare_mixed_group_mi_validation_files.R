@@ -200,7 +200,8 @@ fit_survey_parameter_pooling <- lavaan.survey.ordinal(
   survey.design = design,
   estimator = "WLSMV",
   point.wls = "lavaan",
-  mi.pooling = "parameters"
+  mi.pooling = "parameters",
+  within.variance = "naive"
 )
 
 keep_parameter_rows <- function(pe) {
