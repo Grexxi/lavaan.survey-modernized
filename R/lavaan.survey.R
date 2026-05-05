@@ -236,11 +236,14 @@ lavaan.survey.ordinal <-
            estimator=c("WLSMV", "DWLS"),
            rep.type="auto", replicates=NULL,
            point.wls=c("auto", "lavaan", "design"),
-           mi.pooling=c("auto", "parameters", "sample.statistics")) {
+           mi.pooling=c("auto", "parameters", "sample.statistics"),
+           within.variance=c("auto", "replicate", "lavaan.robust", "naive"),
+           cluster=NULL) {
 
   estimator <- match.arg(estimator)
   point.wls <- match.arg(point.wls)
   mi.pooling <- match.arg(mi.pooling)
+  within.variance <- match.arg(within.variance)
 
   ngroups <- lavInspect(lavaan.fit, "ngroups")
   meanstructure <- isTRUE(lavInspect(lavaan.fit, "options")$meanstructure)
@@ -295,11 +298,20 @@ lavaan.survey.ordinal <-
   if(mi.pooling == "auto") {
     mi.pooling <- if(is.mi.design && !all.ordinal) "parameters" else "sample.statistics"
   }
+  if(mi.pooling == "parameters") {
+    within.variance <- resolve.parameter.mi.within.variance(within.variance,
+                                                            rep.design,
+                                                            point.wls)
+  }
+  else {
+    within.variance <- "none"
+  }
   survey.info <- make.ordinal.survey.info(mode=if(all.ordinal) "ordinal" else "mixed ordinal/continuous",
                                           point.wls=point.wls,
                                           mi.pooling=if(is.mi.design) mi.pooling else "none",
                                           estimator=estimator,
-                                          multiple.imputation=is.mi.design)
+                                          multiple.imputation=is.mi.design,
+                                          within.variance=within.variance)
 
   if(mi.pooling == "parameters") {
     if(!is.mi.design) {
@@ -308,7 +320,8 @@ lavaan.survey.ordinal <-
     fit <- pool.ordinal.mi.parameters(
       lavaan.fit=lavaan.fit, rep.design=rep.design, ordered=ordered,
       estimator=estimator, point.wls=point.wls, rep.type=rep.type,
-      replicates=replicates, survey.info=survey.info
+      replicates=replicates, within.variance=within.variance,
+      cluster=cluster, survey.info=survey.info
     )
     inform.ordinal.survey.info(survey.info)
     return(fit)
@@ -573,13 +586,15 @@ get.ordinal.point.wls <- function(Gamma, point.stats, point.wls, group=NULL) {
 }
 
 make.ordinal.survey.info <- function(mode, point.wls, mi.pooling, estimator,
-                                     multiple.imputation) {
+                                     multiple.imputation,
+                                     within.variance="none") {
   list(function.name="lavaan.survey.ordinal",
        mode=mode,
        mi.pooling=mi.pooling,
        point.wls=point.wls,
        estimator=estimator,
-       multiple.imputation=multiple.imputation)
+       multiple.imputation=multiple.imputation,
+       within.variance=within.variance)
 }
 
 attach.ordinal.survey.info <- function(fit, survey.info) {
@@ -588,18 +603,49 @@ attach.ordinal.survey.info <- function(fit, survey.info) {
 }
 
 format.ordinal.survey.info <- function(survey.info) {
-  c(paste0("lavaan.survey.ordinal mode: ", survey.info$mode),
-    paste0("MI pooling: ", survey.info$mi.pooling),
-    paste0("Point WLS: ", survey.info$point.wls))
+  out <- c(paste0("lavaan.survey.ordinal mode: ", survey.info$mode),
+           paste0("MI pooling: ", survey.info$mi.pooling),
+           paste0("Point WLS: ", survey.info$point.wls))
+  if(!is.null(survey.info$within.variance) &&
+     survey.info$mi.pooling == "parameters") {
+    out <- c(out, paste0("Within variance: ", survey.info$within.variance))
+  }
+  out
 }
 
 inform.ordinal.survey.info <- function(survey.info) {
   message(paste(format.ordinal.survey.info(survey.info), collapse="\n"))
 }
 
+resolve.parameter.mi.within.variance <- function(within.variance, rep.design,
+                                                 point.wls) {
+  if(within.variance != "auto") return(within.variance)
+  if(point.wls == "design") return("replicate")
+  if(inherits(rep.design, "svyimputationList") &&
+     all(vapply(rep.design$designs, inherits, logical(1), "svyrep.design"))) {
+    return("replicate")
+  }
+  "naive"
+}
+
 pool.ordinal.mi.parameters <- function(lavaan.fit, rep.design, ordered,
                                        estimator, point.wls, rep.type,
-                                       replicates, survey.info=NULL) {
+                                       replicates,
+                                       within.variance="naive",
+                                       cluster=NULL,
+                                       survey.info=NULL) {
+  if(point.wls != "lavaan" && within.variance != "replicate") {
+    stop("within.variance = \"", within.variance, "\" is only available with ",
+         "point.wls = \"lavaan\". The point.wls = \"design\" parameter-pooling ",
+         "path uses the design-based replicate covariance from each ",
+         "imputation.")
+  }
+  if(within.variance == "lavaan.robust") {
+    stop("within.variance = \"lavaan.robust\" is not available for ordered ",
+         "lavaan models in current lavaan versions because categorical + ",
+         "clustered estimation is not supported. Use \"replicate\" or ",
+         "\"naive\".")
+  }
   fits <- if(point.wls == "lavaan") {
     lapply(rep.design$designs, fit.ordinal.weighted.lavaan,
            lavaan.fit=lavaan.fit, ordered=ordered, estimator=estimator)
@@ -618,24 +664,41 @@ pool.ordinal.mi.parameters <- function(lavaan.fit, rep.design, ordered,
       ))
     })
   }
-  pooled <- pool.lavaan.mi.parameters(fits)
+
+  vcov.list <- NULL
+  if(point.wls == "lavaan" && within.variance == "replicate") {
+    vcov.list <- Map(estimate.replicate.parameter.vcov,
+                     design=rep.design$designs,
+                     point.fit=fits,
+                     MoreArgs=list(lavaan.fit=lavaan.fit,
+                                   ordered=ordered,
+                                   estimator=estimator))
+  }
+
+  pooled <- pool.lavaan.mi.parameters(fits, vcov.list=vcov.list)
   pooled$call <- lavInspect(lavaan.fit, "call")
   pooled$ordered <- ordered
   pooled$estimator <- estimator
   pooled$point.wls <- point.wls
   pooled$mi.pooling <- "parameters"
+  pooled$within.variance <- within.variance
   pooled$survey.info <- survey.info
   pooled <- attach.ordinal.survey.info(pooled, survey.info)
   pooled
 }
 
-fit.ordinal.weighted.lavaan <- function(design, lavaan.fit, ordered, estimator) {
+fit.ordinal.weighted.lavaan <- function(design, lavaan.fit, ordered, estimator,
+                                        weights=NULL) {
   data <- design$variables
-  weight.name <- infer.sampling.weight.name(design, data)
+  weight.name <- NULL
+  if(is.null(weights)) {
+    weight.name <- infer.sampling.weight.name(design, data)
+    weights <- as.numeric(stats::weights(design, type="sampling"))
+  }
   if(is.null(weight.name)) {
     weight.name <- ".lavaan.survey.sampling.weight"
     while(weight.name %in% names(data)) weight.name <- paste0(".", weight.name)
-    data[[weight.name]] <- as.numeric(stats::weights(design, type="sampling"))
+    data[[weight.name]] <- as.numeric(weights)
   }
 
   new.call <- lavInspect(lavaan.fit, "call")
@@ -652,6 +715,43 @@ fit.ordinal.weighted.lavaan <- function(design, lavaan.fit, ordered, estimator) 
   new.call$sampling.weights <- weight.name
 
   eval(as.call(new.call), envir=parent.frame())
+}
+
+estimate.replicate.parameter.vcov <- function(design, point.fit, lavaan.fit,
+                                              ordered, estimator) {
+  ref.names <- names(lavaan::coef(point.fit))
+  point.coef <- lavaan::coef(point.fit)[ref.names]
+  rep.weights <- stats::weights(design, type="analysis")
+  rep.coef <- matrix(NA_real_, nrow=ncol(rep.weights), ncol=length(ref.names),
+                     dimnames=list(NULL, ref.names))
+
+  for(r in seq_len(ncol(rep.weights))) {
+    fit.r <- try(suppressWarnings(fit.ordinal.weighted.lavaan(
+      design=design,
+      lavaan.fit=lavaan.fit,
+      ordered=ordered,
+      estimator=estimator,
+      weights=rep.weights[, r]
+    )), silent=TRUE)
+    if(inherits(fit.r, "try-error")) next
+    if(!isTRUE(try(lavaan::lavInspect(fit.r, "converged"), silent=TRUE))) next
+    rep.coef[r, ] <- lavaan::coef(fit.r)[ref.names]
+  }
+
+  keep <- stats::complete.cases(rep.coef)
+  if(sum(keep) < 2L) {
+    stop("Fewer than two replicate lavaan fits converged; cannot estimate ",
+         "within-imputation replicate variance.")
+  }
+
+  V <- survey::svrVar(rep.coef[keep, , drop=FALSE],
+                      scale=design$scale,
+                      rscales=design$rscales[keep],
+                      mse=design$mse,
+                      coef=point.coef)
+  V <- as.matrix(V)
+  dimnames(V) <- list(ref.names, ref.names)
+  V
 }
 
 infer.sampling.weight.name <- function(design, data) {
@@ -672,7 +772,7 @@ infer.sampling.weight.name <- function(design, data) {
   NULL
 }
 
-pool.lavaan.mi.parameters <- function(fits) {
+pool.lavaan.mi.parameters <- function(fits, vcov.list=NULL) {
   if(length(fits) == 0L) {
     stop("At least one fitted lavaan object is required for MI parameter pooling.")
   }
@@ -686,10 +786,18 @@ pool.lavaan.mi.parameters <- function(fits) {
   coef.pooled <- colMeans(coef.matrix)
   names(coef.pooled) <- ref.names
 
-  vcov.list <- lapply(fits, function(fit) {
-    V <- as.matrix(lavaan::vcov(fit))
-    V[ref.names, ref.names, drop=FALSE]
-  })
+  if(is.null(vcov.list)) {
+    vcov.list <- lapply(fits, function(fit) {
+      V <- as.matrix(lavaan::vcov(fit))
+      V[ref.names, ref.names, drop=FALSE]
+    })
+  }
+  else {
+    vcov.list <- lapply(vcov.list, function(V) {
+      V <- as.matrix(V)
+      V[ref.names, ref.names, drop=FALSE]
+    })
+  }
   vcov.within <- Reduce(`+`, vcov.list) / length(vcov.list)
   if(length(fits) > 1L) {
     vcov.between <- stats::cov(coef.matrix)
@@ -746,6 +854,7 @@ print.lavaan.survey.mi <- function(x, ...) {
   cat("  Imputations:", x$m, "\n")
   cat("  Parameter pooling: Rubin\n")
   cat("  Point WLS:", x$point.wls %||% "unknown", "\n")
+  cat("  Within variance:", x$within.variance %||% "unknown", "\n")
   invisible(x)
 }
 

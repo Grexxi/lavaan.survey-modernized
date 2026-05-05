@@ -40,7 +40,11 @@ endorsed by the original author/maintainer.
   ordering to `lavaan`.
 * For mixed ordinal/continuous multiple-imputation models, the `auto` defaults
   use the Mplus-nearer parameter-pooling strategy:
-  `point.wls = "lavaan"` and `mi.pooling = "parameters"`. The original
+  `point.wls = "lavaan"` and `mi.pooling = "parameters"`. The
+  within-imputation covariance matrix is now explicit via
+  `within.variance = c("auto", "replicate", "lavaan.robust", "naive")`;
+  `auto` uses replicate-weight refits when available, while `naive` preserves
+  the previous lavaan weighted-vcov diagnostic. The original
   pooled-sample-statistic strategy remains available for sensitivity checks via
   `point.wls = "design"` and `mi.pooling = "sample.statistics"`.
 
@@ -53,6 +57,8 @@ endorsed by the original author/maintainer.
 * Adds regression coverage for the two mixed-indicator algorithms:
   design-based pooled sample statistics and Mplus-nearer Rubin parameter
   pooling with lavaan WLS point-estimation weights.
+* Adds regression coverage for replicate-based and naive within-imputation
+  covariance estimation in mixed ordinal/continuous parameter pooling.
 * Adds Mplus Demo validation workflows for continuous MI, ordinal MI, ordinal
   multiple-group invariance, ordinal multiple-group MI, and mixed
   ordinal/continuous multiple-group MI.
@@ -96,5 +102,8 @@ endorsed by the original author/maintainer.
 * The Mplus Demo workflow for mixed ordinal/continuous multiple-group MI runs
   successfully and shows that the Mplus-nearer parameter-pooling strategy is
   substantially closer to Mplus `TYPE = IMPUTATION` than the original
-  pooled-statistic algorithm. This path should still be treated as a diagnostic
-  implementation until more validation examples are available.
+  pooled-statistic algorithm. The `within.variance = "naive"` setting is useful
+  for reproducing the earlier Mplus-nearer diagnostic, while the default
+  replicate-based within-imputation covariance should be preferred for
+  design-based inference. This path should still be treated as experimental
+  until more validation examples are available.

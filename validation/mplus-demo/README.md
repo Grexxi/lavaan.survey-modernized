@@ -14,7 +14,7 @@ continuous workflow to the new ordinal workflow:
 | 5 | Ordinal survey SEM with multiple imputation | Implemented | `prepare_ordinal_mi_validation_files.R` | `ordinal_mi_complex.inp` | `compare_mplus_ordinal_mi_output.R` |
 | 6 | Ordinal multiple-group / invariance models | Implemented | `prepare_ordinal_group_validation_files.R` | `ordinal_group_complex.inp` | `compare_mplus_ordinal_group_output.R` |
 | 7 | Ordinal multiple-group / invariance models with multiple imputation | Implemented | `prepare_ordinal_group_mi_validation_files.R` | `ordinal_group_mi_complex.inp` | `compare_mplus_ordinal_group_mi_output.R` |
-| 8 | Mixed ordinal/continuous multiple-group models with multiple imputation | Diagnostic; compares the default pooled-statistic algorithm with experimental Rubin parameter pooling, which is much closer to Mplus `TYPE = IMPUTATION` | `prepare_mixed_group_mi_validation_files.R` | `mixed_group_mi_complex.inp` | `compare_mplus_mixed_group_mi_output.R` |
+| 8 | Mixed ordinal/continuous multiple-group models with multiple imputation | Diagnostic; compares pooled sample statistics with Rubin parameter pooling. The Mplus-nearer diagnostic uses `within.variance = "naive"`; the package default uses replicate within-imputation covariance when available. | `prepare_mixed_group_mi_validation_files.R` | `mixed_group_mi_complex.inp` | `compare_mplus_mixed_group_mi_output.R` |
 
 The Mplus Demo version is limited to six dependent variables. The simulated
 ordinal and continuous validation models therefore use compact CFA structures
@@ -193,10 +193,14 @@ the mixed, grouped, imputed, complex-survey CFA model and compares two
 `lavaan.survey.ordinal()` algorithms. For all-ordinal MI models, the default
 path pools sample statistics and their design-based covariance matrix before
 refitting one model. For mixed ordinal/continuous MI models, the default
-`auto` settings use the Mplus-nearer parameter-pooling path: each imputed
-dataset is fitted with lavaan sampling weights, and model parameters are pooled
-with Rubin's rules. The original sample-statistic algorithm remains available
-with `point.wls = "design", mi.pooling = "sample.statistics"`.
+`auto` settings use Rubin parameter pooling: each imputed dataset is fitted
+with lavaan sampling weights, and model parameters are pooled with Rubin's
+rules. The validation script keeps the earlier Mplus-nearer diagnostic by
+setting `within.variance = "naive"` explicitly; the package default now uses
+replicate-weight refits for the within-imputation covariance matrix when
+replicate weights are available. The original sample-statistic algorithm
+remains available with
+`point.wls = "design", mi.pooling = "sample.statistics"`.
 
 ## Interpreting Comparisons
 
@@ -209,8 +213,11 @@ checks, but Mplus does not print a separate lavaan-style robust fit-index column
 for WLSMV.
 
 For multiple imputation, Mplus prints means and standard deviations over the
-imputed-data analyses for several fit measures. The mixed-indicator default now
-mirrors Mplus's imputation layer more closely through Rubin parameter pooling,
-while the sample-statistic algorithm remains a sensitivity check. Parameter
-estimates should therefore be the primary validation target for MI workflows,
-with fit measures treated as a useful diagnostic summary.
+imputed-data analyses for several fit measures. Rubin parameter pooling mirrors
+Mplus's imputation layer more closely, while the sample-statistic algorithm
+remains a sensitivity check. The package default uses replicate-based
+within-imputation covariance estimation for design-based inference; this Mplus
+comparison keeps the faster naive within-imputation covariance for continuity
+with the original diagnostic. Parameter estimates should therefore be the
+primary validation target for MI workflows, with fit measures treated as a
+useful diagnostic summary.
