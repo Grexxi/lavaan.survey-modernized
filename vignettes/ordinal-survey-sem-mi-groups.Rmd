@@ -1,0 +1,263 @@
+---
+title: "Ordinal survey SEM with multiple imputation and groups"
+author: "lavaan.survey contributors"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::pdf_document:
+    toc: true
+    number_sections: true
+geometry: margin=1in
+vignette: >
+  %\VignetteIndexEntry{Ordinal survey SEM with multiple imputation and groups}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+This vignette shows the combined workflow for ordered categorical indicators,
+complex survey design information, multiple imputation, and multiple-group
+models.
+
+The analysis has four steps:
+
+1. Create or obtain completed datasets from an imputation workflow.
+2. Wrap the completed datasets in `mitools::imputationList()`.
+3. Fit the ordinal multiple-group model once with `lavaan`.
+4. Pass the fitted model and imputed survey design to
+   `lavaan.survey.ordinal()`.
+
+`lavaan.survey.ordinal()` then pools the ordinal sample statistics across
+imputations: thresholds, polychoric correlations, and their design-based
+covariance matrix.
+
+## Setup
+
+```{r packages}
+library(lavaan)
+library(survey)
+library(mitools)
+library(mice)
+library(lavaan.survey)
+```
+
+## Simulate a small grouped ordinal survey dataset
+
+The example uses four ordinal indicators, two groups, clusters, strata, and
+sampling weights. The small size keeps the vignette quick to rebuild during
+package checks; applied analyses should use larger samples and more imputations.
+
+```{r simulate-data}
+set.seed(20260513)
+
+n_clusters <- 40
+cluster_size <- 6
+n <- n_clusters * cluster_size
+items <- paste0("y", 1:4)
+
+cluster <- rep(seq_len(n_clusters), each = cluster_size)
+group_id <- rep(c(1L, 2L), each = n / 2)
+group <- factor(group_id, levels = c(1L, 2L), labels = c("boys", "girls"))
+stratum <- rep(rep(1:4, each = 5 * cluster_size), times = 2)
+
+weight <- round(
+  c(0.80, 0.95, 1.15, 1.35)[stratum] *
+    ifelse(group == "boys", 1.05, 0.95) *
+    runif(n, 0.85, 1.15),
+  6
+)
+
+eta <- rnorm(n, mean = ifelse(group == "boys", -0.10, 0.20), sd = 1)
+loadings <- c(0.82, 0.76, 0.72, 0.68)
+
+ystar <- sapply(loadings, function(lambda) {
+  lambda * eta + sqrt(1 - lambda^2) * rnorm(n)
+})
+colnames(ystar) <- items
+
+to_ordered <- function(x) {
+  ordered(
+    cut(x, breaks = c(-Inf, -0.7, 0.1, 0.9, Inf), labels = 1:4),
+    levels = 1:4
+  )
+}
+
+dat <- as.data.frame(lapply(as.data.frame(ystar), to_ordered))
+dat$group <- group
+dat$group_id <- group_id
+dat$weight <- weight
+dat$cluster <- cluster
+dat$stratum <- stratum
+```
+
+## Add missing ordinal responses
+
+The missingness pattern is artificial but useful for demonstrating the workflow.
+The imputation model below includes the grouping variable and survey-design
+information. This is not a universal recipe; in real applications, the
+imputation model needs substantive thought.
+
+```{r missingness}
+dat_missing <- dat
+
+p_y2 <- plogis(-1.35 + 0.45 * scale(ystar[, "y1"])[, 1] +
+                 0.25 * (dat$group == "girls"))
+p_y4 <- plogis(-1.40 + 0.40 * scale(ystar[, "y3"])[, 1] -
+                 0.20 * scale(dat$weight)[, 1])
+
+dat_missing$y2[runif(n) < p_y2] <- NA
+dat_missing$y4[runif(n) < p_y4] <- NA
+
+colMeans(is.na(dat_missing[items]))
+```
+
+## Impute the ordered indicators
+
+The example uses three imputations and three iterations to keep the vignette
+fast. For applied analyses, use many more imputations, check convergence of the
+imputation model, and document the imputation choices.
+
+```{r imputation}
+ini <- mice::mice(dat_missing, maxit = 0, printFlag = FALSE)
+method <- ini$method
+method[] <- ""
+method[c("y2", "y4")] <- "polr"
+
+predictor_matrix <- ini$predictorMatrix
+predictor_matrix[,] <- 0
+predictor_matrix[c("y2", "y4"), c(items, "group_id", "weight", "stratum")] <- 1
+diag(predictor_matrix) <- 0
+
+imp <- mice::mice(
+  dat_missing,
+  m = 3,
+  maxit = 3,
+  method = method,
+  predictorMatrix = predictor_matrix,
+  seed = 20260514,
+  printFlag = FALSE
+)
+
+imputed_data <- lapply(seq_len(imp$m), function(i) {
+  out <- mice::complete(imp, action = i)
+  for (item in items) {
+    out[[item]] <- ordered(out[[item]], levels = 1:4)
+  }
+  out$group <- factor(out$group, levels = c("boys", "girls"))
+  out
+})
+```
+
+## Build an imputed survey design
+
+The `survey` package can store an imputation list as the design's data source.
+This is the object that is passed to `lavaan.survey.ordinal()`.
+
+```{r imputed-survey-design}
+imp_list <- mitools::imputationList(imputed_data)
+
+des_imp <- survey::svydesign(
+  ids = ~cluster,
+  strata = ~stratum,
+  weights = ~weight,
+  data = imp_list,
+  nest = TRUE
+)
+```
+
+## Fit a multiple-group ordinal CFA
+
+First fit the model with `lavaan` on one completed dataset. The fitted model
+contains the parameter table, group structure, ordered-variable information, and
+any equality constraints that should be preserved.
+
+```{r model}
+cfa_model <- "
+  f =~ y1 + y2 + y3 + y4
+"
+```
+
+```{r lavaan-fit}
+fit_naive <- lavaan::cfa(
+  model = cfa_model,
+  data = imputed_data[[1]],
+  ordered = items,
+  group = "group",
+  group.equal = c("loadings", "thresholds"),
+  estimator = "WLSMV"
+)
+```
+
+## Apply the ordinal survey correction and MI pooling
+
+Now pass the naive `lavaan` fit and the imputed survey design to
+`lavaan.survey.ordinal()`.
+
+```{r survey-fit}
+fit_survey_imp <- lavaan.survey.ordinal(
+  lavaan.fit = fit_naive,
+  survey.design = des_imp,
+  estimator = "WLSMV",
+  rep.type = "bootstrap",
+  replicates = 20
+)
+```
+
+The returned object is a regular `lavaan` object, so the usual inspection
+functions work.
+
+```{r fit-measures}
+fitMeasures(
+  fit_survey_imp,
+  c("chisq.scaled", "df.scaled", "pvalue.scaled",
+    "cfi.robust", "tli.robust", "rmsea.robust", "srmr")
+)
+```
+
+```{r loadings}
+subset(
+  parameterEstimates(fit_survey_imp, standardized = TRUE),
+  op == "=~",
+  select = c("group", "lhs", "op", "rhs", "est", "se", "pvalue", "std.all")
+)
+```
+
+## Check that constraints are preserved
+
+The equality labels from the original `lavaan` fit are preserved during the
+survey-adjusted refit.
+
+```{r constraint-labels}
+pe <- parameterEstimates(fit_survey_imp)
+
+subset(
+  pe,
+  op %in% c("=~", "|") & label != "",
+  select = c("lhs", "op", "rhs", "group", "label", "est", "se")
+)
+```
+
+## Practical notes
+
+The vignette uses a deliberately small number of imputations and bootstrap
+replicates to keep package checks fast. In applied research, increase both:
+the number of imputations is a property of the missing-data problem, and the
+number of replicate weights controls the stability of the design-based
+covariance estimate.
+
+For ordinal multiple-group models, sparse categories within groups are a common
+source of instability. Before fitting the model, inspect category counts for
+each ordered indicator by group and consider collapsing categories when needed.
+
+Global fit indices under multiple imputation should be interpreted carefully.
+`lavaan.survey.ordinal()` pools thresholds, polychoric correlations, and their
+design-based covariance matrix before fitting one model; other software may
+summarize fit across imputed-data analyses instead. Parameter estimates and
+standard errors are usually the more direct cross-software comparison target.
