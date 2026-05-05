@@ -52,6 +52,8 @@ endorsed by the original author/maintainer.
 * Added an ordinal multiple-group multiple-imputation Mplus Demo validation
   workflow using the same ten imputed datasets in Mplus and
   `lavaan.survey.ordinal()`.
+* Added a vignette for ordinal survey SEM with multiple imputation and
+  multiple-group models.
 * Updated legacy numerical tolerances for current `lavaan` and `survey`
   versions.
 

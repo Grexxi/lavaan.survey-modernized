@@ -196,6 +196,18 @@ fit_scalar_svy <- lavaan.survey.ordinal(fit_scalar, des)
 summary(fit_scalar_svy, fit.measures = TRUE, standardized = TRUE)
 ```
 
+## Vignettes
+
+Two vignettes document the ordinal workflow:
+
+```r
+vignette("ordinal-survey-sem", package = "lavaan.survey")
+vignette("ordinal-survey-sem-mi-groups", package = "lavaan.survey")
+```
+
+The second vignette walks through ordered indicators, complex survey design
+information, multiple imputation, multiple-group CFA, and equality constraints.
+
 ## Current limitations
 
 `lavaan.survey.ordinal()` is an initial implementation. It currently supports
