@@ -514,7 +514,8 @@ test_that("mixed single-group MI models support Rubin parameter pooling", {
 
   expect_s3_class(fit_pooled, "lavaan.survey.mi")
   expect_equal(fit_pooled$m, length(imputed_data))
-  expect_equal(fit_pooled$within.variance, "naive")
+  survey_info <- attr(fit_pooled, "lavaan.survey.info")
+  expect_equal(survey_info$within.variance, "naive")
   expect_equal(coef(fit_pooled), coef(expected), tolerance=1e-10)
   expect_equal(vcov(fit_pooled), vcov(expected), tolerance=1e-10,
                check.attributes=FALSE)
@@ -612,8 +613,8 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
   )
 
   expect_s3_class(fit_pooled, "lavaan.survey.mi")
-  expect_equal(fit_pooled$within.variance, "replicate")
-  expect_equal(fit_pooled$survey.info$within.variance, "replicate")
+  survey_info <- attr(fit_pooled, "lavaan.survey.info")
+  expect_equal(survey_info$within.variance, "replicate")
   expect_equal(fit_pooled$df.complete,
                min(vapply(rep_design$designs, survey::degf, numeric(1))))
   expect_equal(coef(fit_pooled), coef(expected), tolerance=1e-10)
@@ -664,19 +665,26 @@ test_that("mixed MI defaults to the Mplus-nearer parameter-pooling path", {
   )), "lavaan\\.survey\\.ordinal mode: mixed ordinal/continuous")
 
   expect_s3_class(fit_default, "lavaan.survey.mi")
-  expect_equal(fit_default$point.wls, "lavaan")
-  expect_equal(fit_default$mi.pooling, "parameters")
-  expect_equal(fit_default$within.variance, "replicate")
-  expect_equal(fit_default$survey.info$mode, "mixed ordinal/continuous")
-  expect_equal(fit_default$survey.info$mi.pooling, "parameters")
-  expect_equal(fit_default$survey.info$point.wls, "lavaan")
-  expect_equal(fit_default$survey.info$within.variance, "replicate")
+  survey_info <- attr(fit_default, "lavaan.survey.info")
+  expect_null(fit_default$point.wls)
+  expect_null(fit_default$mi.pooling)
+  expect_null(fit_default$within.variance)
+  expect_null(fit_default$survey.info)
+  expect_equal(survey_info$mode, "mixed ordinal/continuous")
+  expect_equal(survey_info$mi.pooling, "parameters")
+  expect_equal(survey_info$point.wls, "lavaan")
+  expect_equal(survey_info$within.variance, "replicate")
   printed <- utils::capture.output(print(fit_default))
   expect_true(any(grepl("lavaan.survey.ordinal mode: mixed ordinal/continuous",
                         printed, fixed=TRUE)))
   expect_true(any(grepl("MI pooling: parameters", printed, fixed=TRUE)))
   expect_true(any(grepl("Point WLS: lavaan", printed, fixed=TRUE)))
   expect_true(any(grepl("Within variance: replicate", printed, fixed=TRUE)))
+  legacy <- fit_default
+  attr(legacy, "lavaan.survey.info") <- NULL
+  legacy$survey.info <- survey_info
+  legacy_printed <- utils::capture.output(print(legacy))
+  expect_true(any(grepl("MI pooling: parameters", legacy_printed, fixed=TRUE)))
   expect_true(all(is.finite(coef(fit_default))))
 })
 
@@ -725,10 +733,11 @@ test_that("lavaan.survey dispatches mixed MI models to parameter pooling by defa
   )), "MI pooling: parameters")
 
   expect_s3_class(fit_wrapper, "lavaan.survey.mi")
-  expect_equal(fit_wrapper$survey.info$mode, "mixed ordinal/continuous")
-  expect_equal(fit_wrapper$survey.info$mi.pooling, "parameters")
-  expect_equal(fit_wrapper$survey.info$point.wls, "lavaan")
-  expect_equal(fit_wrapper$survey.info$within.variance, "replicate")
+  survey_info <- attr(fit_wrapper, "lavaan.survey.info")
+  expect_equal(survey_info$mode, "mixed ordinal/continuous")
+  expect_equal(survey_info$mi.pooling, "parameters")
+  expect_equal(survey_info$point.wls, "lavaan")
+  expect_equal(survey_info$within.variance, "replicate")
 })
 
 test_that("mixed multiple-group MI models support Rubin parameter pooling", {
@@ -774,7 +783,8 @@ test_that("mixed multiple-group MI models support Rubin parameter pooling", {
 
   expect_s3_class(fit_pooled, "lavaan.survey.mi")
   expect_equal(fit_pooled$m, length(imputed_data))
-  expect_equal(fit_pooled$within.variance, "naive")
+  survey_info <- attr(fit_pooled, "lavaan.survey.info")
+  expect_equal(survey_info$within.variance, "naive")
   expect_equal(coef(fit_pooled), coef(expected), tolerance=1e-10)
   expect_equal(vcov(fit_pooled), vcov(expected), tolerance=1e-10,
                check.attributes=FALSE)
