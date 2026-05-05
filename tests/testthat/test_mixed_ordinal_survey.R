@@ -429,6 +429,135 @@ test_that("mixed multiple-group MI models preserve invariance constraints", {
   expect_true(is.finite(lavaan::fitMeasures(fit_survey, "chisq.scaled")))
 })
 
+test_that("mixed survey CFA can use lavaan WLS weights for point estimation", {
+  data <- make_mixed_indicator_group_data()
+  rep_design <- make_mixed_indicator_rep_design(data, replicates=8)
+
+  stats_design <- lavaan.survey:::get.ordinal.survey.stats(
+    rep.design=rep_design,
+    ov.names=c("y1", "y2", "x1", "x2"),
+    ordered=c("y1", "y2"),
+    ngroups=2,
+    group.var="group",
+    group.labels=c("Girls", "Boys"),
+    point.wls="design"
+  )
+  stats_lavaan <- lavaan.survey:::get.ordinal.survey.stats(
+    rep.design=rep_design,
+    ov.names=c("y1", "y2", "x1", "x2"),
+    ordered=c("y1", "y2"),
+    ngroups=2,
+    group.var="group",
+    group.labels=c("Girls", "Boys"),
+    point.wls="lavaan"
+  )
+
+  for(g in c("Girls", "Boys")) {
+    expect_equal(stats_lavaan$WLS.V[[g]],
+                 stats_lavaan$point.stats$sample.wls.v[[g]],
+                 tolerance=1e-10, check.attributes=FALSE)
+    expect_false(isTRUE(all.equal(stats_design$WLS.V[[g]],
+                                  stats_lavaan$WLS.V[[g]],
+                                  tolerance=1e-7,
+                                  check.attributes=FALSE)))
+  }
+})
+
+test_that("mixed single-group MI models support Rubin parameter pooling", {
+  skip_if_not_installed("mitools")
+
+  imputed_data <- make_mixed_indicator_mi_data()
+  imputation_list <- mitools::imputationList(imputed_data)
+  design <- survey::svydesign(
+    ids=~cluster,
+    strata=~stratum,
+    weights=~weight,
+    data=imputation_list,
+    nest=TRUE
+  )
+  rep_design <- survey::as.svrepdesign(
+    design,
+    type="bootstrap",
+    replicates=4
+  )
+  fit <- fit_mixed_indicator_model(imputed_data[[1]])
+
+  fit_pooled <- suppressWarnings(lavaan.survey.ordinal(
+    lavaan.fit=fit,
+    survey.design=rep_design,
+    estimator="WLSMV",
+    point.wls="lavaan",
+    mi.pooling="parameters"
+  ))
+  per_imputation <- lapply(rep_design$designs, function(design_i) {
+    suppressWarnings(lavaan.survey:::fit.ordinal.weighted.lavaan(
+      design=design_i,
+      lavaan.fit=fit,
+      ordered=c("y1", "y2"),
+      estimator="WLSMV"
+    ))
+  })
+  expected <- lavaan.survey:::pool.lavaan.mi.parameters(per_imputation)
+
+  expect_s3_class(fit_pooled, "lavaan.survey.mi")
+  expect_equal(fit_pooled$m, length(imputed_data))
+  expect_equal(coef(fit_pooled), coef(expected), tolerance=1e-10)
+  expect_equal(vcov(fit_pooled), vcov(expected), tolerance=1e-10,
+               check.attributes=FALSE)
+  expect_true(all(is.finite(coef(fit_pooled))))
+  expect_true(all(diag(vcov(fit_pooled)) > 0))
+  expect_true(all(is.finite(fit_pooled$fit.measures)))
+})
+
+test_that("mixed multiple-group MI models support Rubin parameter pooling", {
+  skip_if_not_installed("mitools")
+
+  imputed_data <- make_mixed_indicator_group_mi_data()
+  imputation_list <- mitools::imputationList(imputed_data)
+  design <- survey::svydesign(
+    ids=~cluster,
+    strata=~stratum,
+    weights=~weight,
+    data=imputation_list,
+    nest=TRUE
+  )
+  rep_design <- survey::as.svrepdesign(
+    design,
+    type="bootstrap",
+    replicates=4
+  )
+  fit <- fit_mixed_indicator_model(
+    imputed_data[[1]],
+    group="group",
+    group.equal=c("loadings", "thresholds", "intercepts")
+  )
+
+  fit_pooled <- suppressWarnings(lavaan.survey.ordinal(
+    lavaan.fit=fit,
+    survey.design=rep_design,
+    estimator="WLSMV",
+    point.wls="lavaan",
+    mi.pooling="parameters"
+  ))
+  per_imputation <- lapply(rep_design$designs, function(design_i) {
+    suppressWarnings(lavaan.survey:::fit.ordinal.weighted.lavaan(
+      design=design_i,
+      lavaan.fit=fit,
+      ordered=c("y1", "y2"),
+      estimator="WLSMV"
+    ))
+  })
+  expected <- lavaan.survey:::pool.lavaan.mi.parameters(per_imputation)
+
+  expect_s3_class(fit_pooled, "lavaan.survey.mi")
+  expect_equal(fit_pooled$m, length(imputed_data))
+  expect_equal(coef(fit_pooled), coef(expected), tolerance=1e-10)
+  expect_equal(vcov(fit_pooled), vcov(expected), tolerance=1e-10,
+               check.attributes=FALSE)
+  expect_true(any(grepl("\\.p", names(coef(fit_pooled)))))
+  expect_true(all(diag(vcov(fit_pooled)) > 0))
+})
+
 test_that("mixed ordered argument must be a subset of observed variables", {
   data <- make_mixed_indicator_data()
   design <- make_mixed_indicator_design(data)

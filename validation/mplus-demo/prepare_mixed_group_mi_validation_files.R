@@ -193,35 +193,103 @@ fit_survey <- lavaan.survey.ordinal(
   estimator = "WLSMV"
 )
 
-pe <- lavaan::parameterEstimates(fit_survey, standardized = TRUE)
-pe <- pe[
-  pe$op %in% c("=~", "|") |
-    (pe$op == "~1" & pe$lhs %in% items_cont) |
-    (pe$op == "~~" & pe$lhs == "f" & pe$rhs == "f"),
-]
-group_labels <- lavaan::lavInspect(fit_survey, "group.label")
-pe$group_label <- group_labels[pe$group]
-
-utils::write.csv(
-  pe[, c("group", "group_label", "lhs", "op", "rhs", "est", "se", "z",
-         "pvalue", "std.all")],
-  file = file.path(validation_dir,
-                   "mixed_group_mi_lavaan_survey_parameters.csv"),
-  row.names = FALSE
+fit_survey_parameter_pooling <- lavaan.survey.ordinal(
+  lavaan.fit = fit_naive,
+  survey.design = design,
+  estimator = "WLSMV",
+  point.wls = "lavaan",
+  mi.pooling = "parameters"
 )
 
-fm <- lavaan::fitMeasures(
+keep_parameter_rows <- function(pe) {
+  pe[
+    pe$op %in% c("=~", "|") |
+      (pe$op == "~1" & pe$lhs %in% items_cont) |
+      (pe$op == "~~" & pe$lhs == "f" & pe$rhs == "f"),
+  ]
+}
+
+write_lavaan_outputs <- function(fit, parameter_file, fit_file) {
+  pe <- lavaan::parameterEstimates(fit, standardized = TRUE)
+  pe <- keep_parameter_rows(pe)
+  group_labels <- lavaan::lavInspect(fit, "group.label")
+  pe$group_label <- group_labels[pe$group]
+
+  utils::write.csv(
+    pe[, c("group", "group_label", "lhs", "op", "rhs", "est", "se", "z",
+           "pvalue", "std.all")],
+    file = file.path(validation_dir, parameter_file),
+    row.names = FALSE
+  )
+
+  fm <- lavaan::fitMeasures(
+    fit,
+    c("chisq", "df", "pvalue",
+      "chisq.scaled", "df.scaled", "pvalue.scaled",
+      "cfi.scaled", "tli.scaled", "rmsea.scaled",
+      "cfi.robust", "tli.robust", "rmsea.robust", "srmr")
+  )
+  utils::write.csv(
+    data.frame(measure = names(fm), value = unname(fm)),
+    file = file.path(validation_dir, fit_file),
+    row.names = FALSE
+  )
+}
+
+write_parameter_pooled_outputs <- function(fit, parameter_file, fit_file) {
+  template <- fit$fits[[1]]
+  pt <- lavaan::parTable(template)
+  free_rows <- pt[pt$free > 0 & pt$op != "==", ]
+  free_rows <- free_rows[order(free_rows$free), ]
+
+  coef_names <- names(coef(fit))
+  if (nrow(free_rows) != length(coef_names)) {
+    stop("Could not map pooled free parameters back to lavaan parameter table.")
+  }
+
+  se <- sqrt(diag(vcov(fit)))
+  z <- coef(fit) / se
+  p <- 2 * stats::pnorm(abs(z), lower.tail = FALSE)
+  group_labels <- lavaan::lavInspect(template, "group.label")
+
+  pe <- data.frame(
+    group = free_rows$group,
+    group_label = group_labels[free_rows$group],
+    lhs = free_rows$lhs,
+    op = free_rows$op,
+    rhs = free_rows$rhs,
+    est = unname(coef(fit)),
+    se = unname(se),
+    z = unname(z),
+    pvalue = unname(p),
+    std.all = NA_real_,
+    stringsAsFactors = FALSE
+  )
+  pe <- keep_parameter_rows(pe)
+
+  utils::write.csv(
+    pe,
+    file = file.path(validation_dir, parameter_file),
+    row.names = FALSE
+  )
+
+  utils::write.csv(
+    data.frame(measure = names(fit$fit.measures),
+               value = unname(fit$fit.measures)),
+    file = file.path(validation_dir, fit_file),
+    row.names = FALSE
+  )
+}
+
+write_lavaan_outputs(
   fit_survey,
-  c("chisq", "df", "pvalue",
-    "chisq.scaled", "df.scaled", "pvalue.scaled",
-    "cfi.scaled", "tli.scaled", "rmsea.scaled",
-    "cfi.robust", "tli.robust", "rmsea.robust", "srmr")
+  parameter_file = "mixed_group_mi_lavaan_survey_parameters.csv",
+  fit_file = "mixed_group_mi_lavaan_survey_fit.csv"
 )
-
-utils::write.csv(
-  data.frame(measure = names(fm), value = unname(fm)),
-  file = file.path(validation_dir, "mixed_group_mi_lavaan_survey_fit.csv"),
-  row.names = FALSE
+write_parameter_pooled_outputs(
+  fit_survey_parameter_pooling,
+  parameter_file = "mixed_group_mi_lavaan_survey_parameters_parameter_pooling.csv",
+  fit_file = "mixed_group_mi_lavaan_survey_fit_parameter_pooling.csv"
 )
 
 missing_summary <- data.frame(

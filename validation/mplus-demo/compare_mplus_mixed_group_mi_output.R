@@ -31,34 +31,50 @@ if (!is.null(model$summaries)) {
     row.names = FALSE
   )
 
-  lavaan_fit <- utils::read.csv(
-    file.path(validation_dir, "mixed_group_mi_lavaan_survey_fit.csv"),
-    stringsAsFactors = FALSE
-  )
-  get_lavaan_fit <- function(measure) {
+  read_lavaan_fit <- function(file) {
+    path <- file.path(validation_dir, file)
+    if (!file.exists(path)) {
+      return(data.frame(measure = character(), value = numeric()))
+    }
+    utils::read.csv(path, stringsAsFactors = FALSE)
+  }
+  get_lavaan_fit <- function(lavaan_fit, measure) {
     value <- lavaan_fit$value[lavaan_fit$measure == measure]
     if (length(value) == 0L) NA_real_ else value[[1L]]
   }
+  lavaan_fit_stats <- read_lavaan_fit("mixed_group_mi_lavaan_survey_fit.csv")
+  lavaan_fit_params <- read_lavaan_fit(
+    "mixed_group_mi_lavaan_survey_fit_parameter_pooling.csv"
+  )
 
   fit_comparison <- data.frame(
     measure = c("chi_square", "df", "p_value", "cfi", "tli", "rmsea", "srmr"),
-    lavaan_scaled = c(
-      get_lavaan_fit("chisq.scaled"),
-      get_lavaan_fit("df.scaled"),
-      get_lavaan_fit("pvalue.scaled"),
-      get_lavaan_fit("cfi.scaled"),
-      get_lavaan_fit("tli.scaled"),
-      get_lavaan_fit("rmsea.scaled"),
-      get_lavaan_fit("srmr")
+    lavaan_sample_stat_scaled = c(
+      get_lavaan_fit(lavaan_fit_stats, "chisq.scaled"),
+      get_lavaan_fit(lavaan_fit_stats, "df.scaled"),
+      get_lavaan_fit(lavaan_fit_stats, "pvalue.scaled"),
+      get_lavaan_fit(lavaan_fit_stats, "cfi.scaled"),
+      get_lavaan_fit(lavaan_fit_stats, "tli.scaled"),
+      get_lavaan_fit(lavaan_fit_stats, "rmsea.scaled"),
+      get_lavaan_fit(lavaan_fit_stats, "srmr")
     ),
-    lavaan_robust = c(
+    lavaan_sample_stat_robust = c(
       NA_real_,
       NA_real_,
       NA_real_,
-      get_lavaan_fit("cfi.robust"),
-      get_lavaan_fit("tli.robust"),
-      get_lavaan_fit("rmsea.robust"),
-      get_lavaan_fit("srmr")
+      get_lavaan_fit(lavaan_fit_stats, "cfi.robust"),
+      get_lavaan_fit(lavaan_fit_stats, "tli.robust"),
+      get_lavaan_fit(lavaan_fit_stats, "rmsea.robust"),
+      get_lavaan_fit(lavaan_fit_stats, "srmr")
+    ),
+    lavaan_parameter_pooling_mean = c(
+      get_lavaan_fit(lavaan_fit_params, "chisq.scaled"),
+      get_lavaan_fit(lavaan_fit_params, "df.scaled"),
+      NA_real_,
+      get_lavaan_fit(lavaan_fit_params, "cfi.scaled"),
+      NA_real_,
+      get_lavaan_fit(lavaan_fit_params, "rmsea.scaled"),
+      get_lavaan_fit(lavaan_fit_params, "srmr")
     ),
     mplus_wlsmv = c(
       pick_one(
@@ -94,16 +110,6 @@ utils::write.csv(
   params,
   file = file.path(validation_dir, "mixed_group_mi_mplus_parameters_raw.csv"),
   row.names = FALSE
-)
-
-lavaan_params <- utils::read.csv(
-  file.path(validation_dir, "mixed_group_mi_lavaan_survey_parameters.csv"),
-  stringsAsFactors = FALSE
-)
-
-lavaan_params$key <- with(
-  lavaan_params,
-  paste(tolower(group_label), tolower(lhs), op, tolower(rhs), sep = "|")
 )
 
 normalize_group <- function(x) {
@@ -199,27 +205,70 @@ normalize_mplus <- function(params) {
 
 mplus_params <- normalize_mplus(params)
 
-comparison <- merge(
-  lavaan_params,
-  mplus_params[, c("key", "mplus_est", "mplus_se")],
-  by = "key",
-  all.x = TRUE
+compare_lavaan_parameters <- function(input_file, output_file, algorithm) {
+  path <- file.path(validation_dir, input_file)
+  if (!file.exists(path)) {
+    warning("lavaan parameter file not found: ", path)
+    return(invisible(NULL))
+  }
+
+  lavaan_params <- utils::read.csv(path, stringsAsFactors = FALSE)
+  lavaan_params$key <- with(
+    lavaan_params,
+    paste(tolower(group_label), tolower(lhs), op, tolower(rhs), sep = "|")
+  )
+
+  comparison <- merge(
+    lavaan_params,
+    mplus_params[, c("key", "mplus_est", "mplus_se")],
+    by = "key",
+    all.x = TRUE
+  )
+  comparison$algorithm <- algorithm
+  comparison$est_diff_mplus_minus_lavaan <- comparison$mplus_est - comparison$est
+  comparison$se_diff_mplus_minus_lavaan <- comparison$mplus_se - comparison$se
+
+  utils::write.csv(
+    comparison,
+    file = file.path(validation_dir, output_file),
+    row.names = FALSE
+  )
+  invisible(comparison)
+}
+
+comparison_sample_stats <- compare_lavaan_parameters(
+  input_file = "mixed_group_mi_lavaan_survey_parameters.csv",
+  output_file = "mixed_group_mi_mplus_lavaan_parameter_comparison.csv",
+  algorithm = "sample_statistics"
+)
+comparison_parameter_pooling <- compare_lavaan_parameters(
+  input_file = "mixed_group_mi_lavaan_survey_parameters_parameter_pooling.csv",
+  output_file = "mixed_group_mi_mplus_lavaan_parameter_comparison_parameter_pooling.csv",
+  algorithm = "parameter_pooling"
 )
 
-comparison$est_diff_mplus_minus_lavaan <- comparison$mplus_est - comparison$est
-comparison$se_diff_mplus_minus_lavaan <- comparison$mplus_se - comparison$se
-
-utils::write.csv(
-  comparison,
-  file = file.path(validation_dir,
-                   "mixed_group_mi_mplus_lavaan_parameter_comparison.csv"),
-  row.names = FALSE
-)
+combined <- do.call(rbind, Filter(Negate(is.null), list(
+  comparison_sample_stats,
+  comparison_parameter_pooling
+)))
+if (!is.null(combined) && nrow(combined) > 0L) {
+  utils::write.csv(
+    combined,
+    file = file.path(validation_dir,
+                     "mixed_group_mi_mplus_lavaan_parameter_comparison_all_algorithms.csv"),
+    row.names = FALSE
+  )
+}
 
 message("Mixed multiple-group MI parameter comparison written to: ",
         normalizePath(file.path(
           validation_dir,
           "mixed_group_mi_mplus_lavaan_parameter_comparison.csv"
+        )))
+message("Mixed multiple-group MI parameter-pooling comparison written to: ",
+        normalizePath(file.path(
+          validation_dir,
+          "mixed_group_mi_mplus_lavaan_parameter_comparison_parameter_pooling.csv"
         )))
 message("Mixed multiple-group MI fit comparison written to: ",
         normalizePath(file.path(

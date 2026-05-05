@@ -32,7 +32,7 @@ new ordinal workflow:
 | 5 | Ordinal survey SEM with multiple imputation | Cross-checked against Mplus Demo. |
 | 6 | Ordinal multiple-group / invariance models | Cross-checked against Mplus Demo. |
 | 7 | Ordinal multiple-group / invariance models with multiple imputation | Cross-checked against Mplus Demo. |
-| 8 | Mixed ordinal/continuous multiple-group models with multiple imputation | Diagnostic workflow runs in Mplus Demo, but currently flags a mismatch in the package's pooled-statistic MI approach. |
+| 8 | Mixed ordinal/continuous multiple-group models with multiple imputation | Diagnostic workflow runs in Mplus Demo and compares pooled sample statistics with experimental Rubin parameter pooling. |
 
 
 ## Validation 1: Continuous Survey SEM
@@ -800,21 +800,31 @@ multiple-group MI validation.
 
 ### Fit Measures
 
-| Measure | lavaan scaled | lavaan robust | Mplus WLSMV imputation mean |
+The mixed MI workflow now writes both lavaan algorithms:
+
+- `sample_statistics`: the default `lavaan.survey.ordinal()` approach, pooling
+  WLS sample statistics and their design-based covariance matrix before one
+  refit.
+- `parameter_pooling`: the experimental Mplus-nearer path, using
+  `point.wls = "lavaan", mi.pooling = "parameters"` to fit each imputation with
+  lavaan sampling weights and pool parameters with Rubin's rules.
+
+| Measure | lavaan sample-stat scaled | lavaan parameter-pooling mean | Mplus WLSMV imputation mean |
 | --- | ---: | ---: | ---: |
-| Chi-square | 88.606 | -- | 12.848 |
-| df | 10 | -- | 10 |
+| Chi-square | 88.606 | 13.273 | 12.848 |
+| df | 10 | 10 | 10 |
 | p-value | 0.000 | -- | -- |
-| CFI | 0.909 | -- | 0.997 |
+| CFI | 0.909 | 0.9958 | 0.997 |
 | TLI | 0.891 | -- | 0.996 |
-| RMSEA | 0.165 | -- | 0.030 |
-| SRMR | 0.0271 | 0.0271 | 0.026 |
+| RMSEA | 0.165 | 0.0317 | 0.030 |
+| SRMR | 0.0271 | 0.0275 | 0.026 |
 
 ### Parameter Agreement
 
 The comparison matched all 22 selected unstandardized loading, threshold,
 intercept, and factor-variance parameters. Agreement is not adequate for this
-to count as a passed external validation.
+to count as a passed external validation for the default sample-statistic
+algorithm.
 
 | Quantity | Value |
 | --- | ---: |
@@ -842,21 +852,49 @@ Largest standard-error differences:
 | `boys: f =~ x1` | 0.0706 | 0.0620 | -0.0086 |
 | `girls: f =~ x1` | 0.0706 | 0.0620 | -0.0086 |
 
+The experimental parameter-pooling path is much closer to Mplus:
+
+| Quantity | Value |
+| --- | ---: |
+| Matched free parameters | 20 |
+| Maximum absolute estimate difference | 0.0221 |
+| Maximum absolute standard error difference | 0.0109 |
+
+Largest estimate differences for parameter pooling:
+
+| Parameter | lavaan parameter pooling | Mplus Demo | Mplus - lavaan |
+| --- | ---: | ---: | ---: |
+| `boys: f =~ x1` | 0.9341 | 0.9120 | -0.0221 |
+| `girls: f =~ x1` | 0.9341 | 0.9120 | -0.0221 |
+| `boys: y1 | t2` | 0.3008 | 0.2790 | -0.0218 |
+| `girls: y1 | t2` | 0.3008 | 0.2790 | -0.0218 |
+| `boys: y1 | t1` | -0.6439 | -0.6280 | 0.0159 |
+
+Largest standard-error differences for parameter pooling:
+
+| Parameter | lavaan parameter pooling | Mplus Demo | Mplus - lavaan |
+| --- | ---: | ---: | ---: |
+| `girls: f ~~ f` | 0.1419 | 0.1310 | -0.0109 |
+| `boys: y2 | t2` | 0.0778 | 0.0670 | -0.0108 |
+| `girls: y2 | t2` | 0.0778 | 0.0670 | -0.0108 |
+| `boys: f ~~ f` | 0.0601 | 0.0510 | -0.0091 |
+| `boys: y2 | t1` | 0.0778 | 0.0860 | 0.0082 |
+
 ### Interpretation
 
-This is a useful failure mode rather than a crash. Mplus fits the intended
-mixed, grouped, imputed, complex-survey model and reports pooled
-imputation-results. The current `lavaan.survey.ordinal()` implementation pools
-the WLS sample statistics and their design-based covariance matrix first, then
-fits one lavaan model. For all-ordinal MI examples this approximation has
+This is now a useful fork in the evidence rather than a simple failure. Mplus
+fits the intended mixed, grouped, imputed, complex-survey model and reports
+pooled imputation-results. The default `lavaan.survey.ordinal()` algorithm
+pools the WLS sample statistics and their design-based covariance matrix first,
+then fits one lavaan model. For all-ordinal MI examples this approximation
 matched Mplus closely, but in this mixed multiple-group case the distinction is
 substantive.
 
-The practical conclusion is that mixed ordinal/continuous models with MI should
-remain experimental. A likely next implementation step is a Mplus-style
-imputation layer that fits each completed survey design separately and pools
-model parameters and covariance matrices, rather than only pooling WLS sample
-statistics before a single refit.
+The experimental parameter-pooling path is much closer to Mplus for both
+parameter estimates and fit-measure means. It should still be treated as
+experimental because it currently mirrors Mplus's imputation layer more closely
+than its full complex-survey correction layer, but it gives us a practical,
+testable path for mixed ordinal/continuous MI models.
 
 ## Files Produced Locally
 
@@ -931,10 +969,14 @@ Git:
 - `mixed_group_mi_missing_summary.csv`
 - `mixed_group_mi_lavaan_survey_parameters.csv`
 - `mixed_group_mi_lavaan_survey_fit.csv`
+- `mixed_group_mi_lavaan_survey_parameters_parameter_pooling.csv`
+- `mixed_group_mi_lavaan_survey_fit_parameter_pooling.csv`
 - `mixed_group_mi_mplus_fit_summary.csv`
 - `mixed_group_mi_mplus_parameters_raw.csv`
 - `mixed_group_mi_mplus_lavaan_fit_comparison.csv`
 - `mixed_group_mi_mplus_lavaan_parameter_comparison.csv`
+- `mixed_group_mi_mplus_lavaan_parameter_comparison_parameter_pooling.csv`
+- `mixed_group_mi_mplus_lavaan_parameter_comparison_all_algorithms.csv`
 
 ## References
 

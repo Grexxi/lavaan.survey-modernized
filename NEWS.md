@@ -20,6 +20,12 @@ endorsed by the original author/maintainer.
   observed variables in `lavaan.survey.ordinal()` single-group and
   multiple-group models, including multiple imputation. The mixed path delegates
   WLS sample-statistic ordering to lavaan.
+* Added experimental switches for mixed WLSMV diagnostics:
+  `point.wls = "lavaan"` keeps lavaan's usual WLS point-estimation weights in
+  sample-statistic refits, and `mi.pooling = "parameters"` applies Rubin
+  pooling to per-imputation model parameters and covariance matrices. With
+  `point.wls = "lavaan"`, the parameter-pooling path analyzes each imputed
+  dataset with lavaan sampling weights, giving a Mplus-nearer diagnostic mode.
 
 ## Compatibility and bug fixes
 
@@ -54,6 +60,9 @@ endorsed by the original author/maintainer.
   multiple-imputation survey CFA.
 * Added regression coverage for mixed ordinal/continuous multiple-group
   multiple-imputation survey CFA with invariance constraints.
+* Added regression coverage for the two mixed-indicator algorithms:
+  design-based pooled sample statistics and Mplus-nearer Rubin parameter
+  pooling with lavaan WLS point-estimation weights.
 * Documented the continuous multiple-imputation survey workflow in the README.
 * Added a continuous multiple-imputation Mplus Demo validation workflow using
   the same ten imputed datasets in Mplus and `lavaan.survey()`.
@@ -83,7 +92,7 @@ endorsed by the original author/maintainer.
 
 ## Current limitations
 
-* Mixed continuous/ordinal observed-variable sets are still experimental. The
-  mixed multiple-group MI Mplus Demo workflow now runs, but it flags a
-  substantive difference between Mplus's `TYPE = IMPUTATION` parameter pooling
-  and the current `lavaan.survey.ordinal()` pooled-statistic MI approach.
+* Mixed continuous/ordinal observed-variable sets are still experimental. Both
+  the original pooled-statistic algorithm and a Mplus-nearer parameter-pooling
+  algorithm are now available so the validation workflows can compare them
+  side by side.

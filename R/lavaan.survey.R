@@ -212,9 +212,13 @@ lavaan.survey <-
 lavaan.survey.ordinal <-
   function(lavaan.fit, survey.design, ordered=NULL,
            estimator=c("WLSMV", "DWLS"),
-           rep.type="auto", replicates=NULL) {
+           rep.type="auto", replicates=NULL,
+           point.wls=c("design", "lavaan"),
+           mi.pooling=c("sample.statistics", "parameters")) {
 
   estimator <- match.arg(estimator)
+  point.wls <- match.arg(point.wls)
+  mi.pooling <- match.arg(mi.pooling)
 
   ngroups <- lavInspect(lavaan.fit, "ngroups")
   meanstructure <- isTRUE(lavInspect(lavaan.fit, "options")$meanstructure)
@@ -262,14 +266,28 @@ lavaan.survey.ordinal <-
     stop("The survey design is missing the lavaan group variable: ", group.var)
   }
 
+  if(mi.pooling == "parameters") {
+    if(!inherits(rep.design, "svyimputationList")) {
+      stop("mi.pooling = \"parameters\" requires a svyimputationList survey design.")
+    }
+    return(pool.ordinal.mi.parameters(
+      lavaan.fit=lavaan.fit, rep.design=rep.design, ordered=ordered,
+      estimator=estimator, point.wls=point.wls, rep.type=rep.type,
+      replicates=replicates
+    ))
+  }
+
   if(inherits(rep.design, "svyimputationList")) {
     ordinal.stats <- lapply(rep.design$designs, get.ordinal.survey.stats,
                             ov.names=ov.names, ordered=ordered,
                             ngroups=ngroups, group.var=group.var,
                             group.labels=group.labels,
-                            meanstructure=meanstructure)
+                            meanstructure=meanstructure,
+                            estimator=estimator,
+                            point.wls=point.wls)
     ordinal.stats <- pool.ordinal.mi.stats(ordinal.stats, ngroups=ngroups,
-                                           group.labels=group.labels)
+                                           group.labels=group.labels,
+                                           point.wls=point.wls)
   }
   else {
     ordinal.stats <- get.ordinal.survey.stats(rep.design=rep.design,
@@ -278,7 +296,9 @@ lavaan.survey.ordinal <-
                                               ngroups=ngroups,
                                               group.var=group.var,
                                               group.labels=group.labels,
-                                              meanstructure=meanstructure)
+                                              meanstructure=meanstructure,
+                                              estimator=estimator,
+                                              point.wls=point.wls)
   }
 
   point.stats <- ordinal.stats$point.stats
@@ -308,14 +328,17 @@ lavaan.survey.ordinal <-
 get.ordinal.survey.stats <- function(rep.design, ov.names, ordered,
                                      ngroups, group.var=NULL,
                                      group.labels=NULL,
-                                     meanstructure=TRUE) {
+                                     meanstructure=TRUE,
+                                     estimator="WLSMV",
+                                     point.wls="design") {
   data <- rep.design$variables
   point.weights <- stats::weights(rep.design, type="sampling")
   point.stats <- get.ordinal.stats(data=data, ov.names=ov.names,
                                    ordered=ordered, weights=point.weights,
                                    group=group.var, group.labels=group.labels,
                                    full=TRUE,
-                                   meanstructure=meanstructure)
+                                   meanstructure=meanstructure,
+                                   estimator=estimator)
 
   rep.weights <- stats::weights(rep.design, type="analysis")
   if(ngroups == 1) {
@@ -328,7 +351,8 @@ get.ordinal.survey.stats <- function(rep.design, ov.names, ordered,
                                           ordered=ordered,
                                           weights=rep.weights[, r],
                                           wls.names=names(point.stats$wls.obs),
-                                          meanstructure=meanstructure)$wls.obs
+                                          meanstructure=meanstructure,
+                                          estimator=estimator)$wls.obs
     }
 
     Gamma <- survey::svrVar(rep.stats, scale=rep.design$scale,
@@ -336,7 +360,7 @@ get.ordinal.survey.stats <- function(rep.design, ov.names, ordered,
                             coef=point.stats$wls.obs)
     Gamma <- as.matrix(Gamma) * point.stats$nobs
     dimnames(Gamma) <- list(names(point.stats$wls.obs), names(point.stats$wls.obs))
-    WLS.V <- get.dwls.weight(Gamma)
+    WLS.V <- get.ordinal.point.wls(Gamma, point.stats, point.wls)
 
     return(list(point.stats=point.stats, Gamma=Gamma, WLS.V=WLS.V))
   }
@@ -356,7 +380,8 @@ get.ordinal.survey.stats <- function(rep.design, ov.names, ordered,
                                  group=group.var,
                                  group.labels=group.labels,
                                  wls.names=lapply(point.stats$wls.obs, names),
-                                 meanstructure=meanstructure)$wls.obs
+                                 meanstructure=meanstructure,
+                                 estimator=estimator)$wls.obs
     for(g in seq_len(ngroups)) rep.stats[[g]][r, ] <- rep.wls[[g]]
   }
 
@@ -370,13 +395,14 @@ get.ordinal.survey.stats <- function(rep.design, ov.names, ordered,
     Gamma[[g]] <- as.matrix(Gamma[[g]]) * point.stats$nobs[[g]]
     dimnames(Gamma[[g]]) <- list(names(point.stats$wls.obs[[g]]),
                                  names(point.stats$wls.obs[[g]]))
-    WLS.V[[g]] <- get.dwls.weight(Gamma[[g]])
+    WLS.V[[g]] <- get.ordinal.point.wls(Gamma[[g]], point.stats, point.wls, group=g)
   }
 
   list(point.stats=point.stats, Gamma=Gamma, WLS.V=WLS.V)
 }
 
-pool.ordinal.mi.stats <- function(ordinal.stats, ngroups, group.labels=NULL) {
+pool.ordinal.mi.stats <- function(ordinal.stats, ngroups, group.labels=NULL,
+                                  point.wls="design") {
   if(length(ordinal.stats) == 0L) {
     stop("At least one imputed ordinal survey design is required.")
   }
@@ -391,7 +417,7 @@ pool.ordinal.mi.stats <- function(ordinal.stats, ngroups, group.labels=NULL) {
       nobs.list=vapply(ordinal.stats, function(x) x$point.stats$nobs, numeric(1)),
       sample.nobs=point.stats$nobs
     )
-    WLS.V <- get.dwls.weight(Gamma)
+    WLS.V <- get.ordinal.point.wls(Gamma, point.stats, point.wls)
 
     return(list(point.stats=point.stats, Gamma=Gamma, WLS.V=WLS.V))
   }
@@ -409,7 +435,7 @@ pool.ordinal.mi.stats <- function(ordinal.stats, ngroups, group.labels=NULL) {
       nobs.list=vapply(ordinal.stats, function(x) x$point.stats$nobs[[g]], numeric(1)),
       sample.nobs=point.stats$nobs[[g]]
     )
-    WLS.V[[g]] <- get.dwls.weight(Gamma[[g]])
+    WLS.V[[g]] <- get.ordinal.point.wls(Gamma[[g]], point.stats, point.wls, group=g)
   }
 
   list(point.stats=point.stats, Gamma=Gamma, WLS.V=WLS.V)
@@ -424,6 +450,7 @@ pool.ordinal.mi.point.stats <- function(point.stats.list) {
        sample.mean=average.named.vectors(lapply(point.stats.list, `[[`, "sample.mean")),
        sample.th=sample.th,
        wls.obs=average.named.vectors(lapply(point.stats.list, `[[`, "wls.obs")),
+       sample.wls.v=average.matrices(lapply(point.stats.list, `[[`, "sample.wls.v")),
        nobs=stats::median(vapply(point.stats.list, `[[`, numeric(1), "nobs")))
 }
 
@@ -431,9 +458,10 @@ pool.ordinal.mi.point.stats.by.group <- function(point.stats.list, group.labels)
   ngroups <- length(group.labels)
   first <- point.stats.list[[1]]
 
-  sample.cov <- sample.mean <- sample.th <- wls.obs <- vector("list", ngroups)
+  sample.cov <- sample.mean <- sample.th <- wls.obs <- sample.wls.v <-
+    vector("list", ngroups)
   names(sample.cov) <- names(sample.mean) <- names(sample.th) <-
-    names(wls.obs) <- group.labels
+    names(wls.obs) <- names(sample.wls.v) <- group.labels
 
   for(g in seq_len(ngroups)) {
     sample.cov[[g]] <- average.matrices(
@@ -448,6 +476,9 @@ pool.ordinal.mi.point.stats.by.group <- function(point.stats.list, group.labels)
     wls.obs[[g]] <- average.named.vectors(
       lapply(point.stats.list, function(x) x$wls.obs[[g]])
     )
+    sample.wls.v[[g]] <- average.matrices(
+      lapply(point.stats.list, function(x) x$sample.wls.v[[g]])
+    )
   }
   attr(sample.th, "th.idx") <- attr(first$sample.th, "th.idx")
 
@@ -460,6 +491,7 @@ pool.ordinal.mi.point.stats.by.group <- function(point.stats.list, group.labels)
        sample.mean=sample.mean,
        sample.th=sample.th,
        wls.obs=wls.obs,
+       sample.wls.v=sample.wls.v,
        nobs=nobs)
 }
 
@@ -487,6 +519,186 @@ pool.ordinal.mi.gamma <- function(gamma.list, wls.list, nobs.list, sample.nobs) 
   Gamma.within + sample.nobs * ((m + 1) / m) * Gamma.between
 }
 
+get.ordinal.point.wls <- function(Gamma, point.stats, point.wls, group=NULL) {
+  if(point.wls == "design") {
+    return(get.dwls.weight(Gamma))
+  }
+
+  WLS.V <- if(is.null(group)) point.stats$sample.wls.v else point.stats$sample.wls.v[[group]]
+  if(is.null(WLS.V)) {
+    stop("lavaan WLS weights are not available for point.wls = \"lavaan\".")
+  }
+  dimnames(WLS.V) <- dimnames(Gamma)
+  WLS.V
+}
+
+pool.ordinal.mi.parameters <- function(lavaan.fit, rep.design, ordered,
+                                       estimator, point.wls, rep.type,
+                                       replicates) {
+  fits <- if(point.wls == "lavaan") {
+    lapply(rep.design$designs, fit.ordinal.weighted.lavaan,
+           lavaan.fit=lavaan.fit, ordered=ordered, estimator=estimator)
+  }
+  else {
+    lapply(rep.design$designs, function(design) {
+      suppressWarnings(lavaan.survey.ordinal(
+        lavaan.fit=lavaan.fit,
+        survey.design=design,
+        ordered=ordered,
+        estimator=estimator,
+        rep.type=rep.type,
+        replicates=replicates,
+        point.wls=point.wls,
+        mi.pooling="sample.statistics"
+      ))
+    })
+  }
+  pooled <- pool.lavaan.mi.parameters(fits)
+  pooled$call <- lavInspect(lavaan.fit, "call")
+  pooled$ordered <- ordered
+  pooled$estimator <- estimator
+  pooled$point.wls <- point.wls
+  pooled$mi.pooling <- "parameters"
+  pooled
+}
+
+fit.ordinal.weighted.lavaan <- function(design, lavaan.fit, ordered, estimator) {
+  data <- design$variables
+  weight.name <- infer.sampling.weight.name(design, data)
+  if(is.null(weight.name)) {
+    weight.name <- ".lavaan.survey.sampling.weight"
+    while(weight.name %in% names(data)) weight.name <- paste0(".", weight.name)
+    data[[weight.name]] <- as.numeric(stats::weights(design, type="sampling"))
+  }
+
+  new.call <- lavInspect(lavaan.fit, "call")
+  new.call$data <- data
+  new.call$model <- lavaan::parTable(lavaan.fit)
+  new.call$sample.cov <- NULL
+  new.call$sample.mean <- NULL
+  new.call$sample.th <- NULL
+  new.call$sample.nobs <- NULL
+  new.call$WLS.V <- NULL
+  new.call$NACOV <- NULL
+  new.call$estimator <- estimator
+  new.call$ordered <- ordered
+  new.call$sampling.weights <- weight.name
+
+  eval(as.call(new.call), envir=parent.frame())
+}
+
+infer.sampling.weight.name <- function(design, data) {
+  sampling.weights <- as.numeric(stats::weights(design, type="sampling"))
+  if(length(sampling.weights) != nrow(data)) return(NULL)
+
+  numeric.names <- names(data)[vapply(data, is.numeric, logical(1))]
+  for(nm in numeric.names) {
+    candidate <- as.numeric(data[[nm]])
+    if(length(candidate) == length(sampling.weights) &&
+       isTRUE(all.equal(candidate, sampling.weights,
+                        tolerance=sqrt(.Machine$double.eps),
+                        check.attributes=FALSE))) {
+      return(nm)
+    }
+  }
+
+  NULL
+}
+
+pool.lavaan.mi.parameters <- function(fits) {
+  if(length(fits) == 0L) {
+    stop("At least one fitted lavaan object is required for MI parameter pooling.")
+  }
+
+  ref.names <- names(lavaan::coef(fits[[1]]))
+  coef.list <- lapply(fits, function(fit) lavaan::coef(fit)[ref.names])
+  if(!all(vapply(coef.list, function(x) identical(names(x), ref.names), logical(1)))) {
+    stop("Free parameter names do not match across imputations.")
+  }
+  coef.matrix <- do.call(rbind, coef.list)
+  coef.pooled <- colMeans(coef.matrix)
+  names(coef.pooled) <- ref.names
+
+  vcov.list <- lapply(fits, function(fit) {
+    V <- as.matrix(lavaan::vcov(fit))
+    V[ref.names, ref.names, drop=FALSE]
+  })
+  vcov.within <- Reduce(`+`, vcov.list) / length(vcov.list)
+  if(length(fits) > 1L) {
+    vcov.between <- stats::cov(coef.matrix)
+  }
+  else {
+    vcov.between <- matrix(0, nrow=length(ref.names), ncol=length(ref.names),
+                           dimnames=list(ref.names, ref.names))
+  }
+  dimnames(vcov.between) <- dimnames(vcov.within)
+  vcov.total <- vcov.within + ((length(fits) + 1) / length(fits)) * vcov.between
+
+  fit.measures <- pool.lavaan.mi.fit.measures(fits)
+  out <- list(coef=coef.pooled,
+              vcov=vcov.total,
+              vcov.within=vcov.within,
+              vcov.between=vcov.between,
+              fits=fits,
+              fit.measures=fit.measures,
+              m=length(fits))
+  class(out) <- "lavaan.survey.mi"
+  out
+}
+
+pool.lavaan.mi.fit.measures <- function(fits) {
+  measure.names <- c("chisq", "chisq.scaled", "df", "df.scaled",
+                     "cfi", "cfi.scaled", "rmsea", "rmsea.scaled", "srmr")
+  fit.list <- lapply(fits, function(fit) {
+    out <- try(lavaan::fitMeasures(fit, measure.names), silent=TRUE)
+    if(inherits(out, "try-error")) {
+      stats::setNames(rep(NA_real_, length(measure.names)), measure.names)
+    }
+    else {
+      out
+    }
+  })
+  fit.matrix <- do.call(rbind, fit.list)
+  colMeans(fit.matrix, na.rm=TRUE)
+}
+
+coef.lavaan.survey.mi <- function(object, ...) {
+  object$coef
+}
+
+vcov.lavaan.survey.mi <- function(object, ...) {
+  object$vcov
+}
+
+print.lavaan.survey.mi <- function(x, ...) {
+  cat("lavaan.survey multiply imputed ordinal survey fit\n")
+  cat("  Imputations:", x$m, "\n")
+  cat("  Parameter pooling: Rubin\n")
+  cat("  Point WLS:", x$point.wls %||% "unknown", "\n")
+  invisible(x)
+}
+
+summary.lavaan.survey.mi <- function(object, ...) {
+  se <- sqrt(diag(object$vcov))
+  z <- object$coef / se
+  p <- 2 * stats::pnorm(abs(z), lower.tail=FALSE)
+  out <- data.frame(Estimate=object$coef,
+                    Std.Err=se,
+                    z.value=z,
+                    P.value=p,
+                    check.names=FALSE)
+  print(out)
+  if(length(object$fit.measures)) {
+    cat("\nPooled fit-measure averages:\n")
+    print(object$fit.measures)
+  }
+  invisible(out)
+}
+
+`%||%` <- function(x, y) {
+  if(is.null(x)) y else x
+}
+
 average.named.vectors <- function(x) {
   ref.names <- names(x[[1]])
   if(!all(vapply(x, function(v) identical(names(v), ref.names), logical(1)))) {
@@ -510,7 +722,8 @@ average.matrices <- function(x) {
 get.ordinal.stats <- function(data, ov.names, ordered, weights,
                               group=NULL, group.labels=NULL,
                               wls.names=NULL, full=FALSE,
-                              meanstructure=TRUE) {
+                              meanstructure=TRUE,
+                              estimator="WLSMV") {
   weight.name <- ".lavaan.survey.weight"
   while(weight.name %in% names(data)) weight.name <- paste0(".", weight.name)
 
@@ -532,9 +745,11 @@ get.ordinal.stats <- function(data, ov.names, ordered, weights,
     unrestricted <- lavaan::lavCor(data, ordered=ordered, sampling.weights=weight.name,
                                    group=group,
                                    output="lavaan", missing="listwise",
-                                   meanstructure=meanstructure)
+                                   meanstructure=meanstructure,
+                                   estimator=estimator)
     sample.stats <- lavInspect(unrestricted, "sampstat")
     wls.obs <- lavInspect(unrestricted, "wls.obs")
+    sample.wls.v <- lavInspect(unrestricted, "wls.v")
 
     if(is.null(group)) {
       th.idx <- unrestricted@SampleStats@th.idx[[1]]
@@ -546,6 +761,7 @@ get.ordinal.stats <- function(data, ov.names, ordered, weights,
                   sample.mean=sample.stats$mean,
                   sample.th=sample.th,
                   wls.obs=wls.obs,
+                  sample.wls.v=sample.wls.v,
                   nobs=lavInspect(unrestricted, "nobs")))
     }
 
@@ -558,6 +774,7 @@ get.ordinal.stats <- function(data, ov.names, ordered, weights,
                 sample.mean=lapply(sample.stats, `[[`, "mean"),
                 sample.th=sample.th,
                 wls.obs=wls.obs,
+                sample.wls.v=sample.wls.v,
                 nobs=lavInspect(unrestricted, "nobs")))
   }
 
@@ -565,7 +782,8 @@ get.ordinal.stats <- function(data, ov.names, ordered, weights,
     unrestricted <- lavaan::lavCor(data, ordered=ordered, sampling.weights=weight.name,
                                    group=group,
                                    output="lavaan", missing="listwise",
-                                   meanstructure=meanstructure)
+                                   meanstructure=meanstructure,
+                                   estimator=estimator)
     wls.obs <- lavInspect(unrestricted, "wls.obs")
 
     if(is.null(group)) {
@@ -588,7 +806,8 @@ get.ordinal.stats <- function(data, ov.names, ordered, weights,
   sample.stats <- lavaan::lavCor(data, ordered=ordered, sampling.weights=weight.name,
                                  group=group,
                                  output="sampstat", missing="listwise",
-                                 meanstructure=meanstructure)
+                                 meanstructure=meanstructure,
+                                 estimator=estimator)
   if(is.null(group)) {
     wls.obs <- get.ordinal.wls.obs(sample.stats)
     if(!is.null(wls.names)) wls.obs <- wls.obs[wls.names]
