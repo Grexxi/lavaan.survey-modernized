@@ -121,3 +121,32 @@ test_that("continuous MI models work without a meanstructure", {
   expect_true(lavaan::lavInspect(fit_svy, "converged"))
   expect_equal(dim(Gamma), c(6L, 6L))
 })
+
+test_that("pval.pFsum accepts current robust lavaan test names", {
+  hs <- make_hs_design()
+  local_model <- "visual =~ x1 + x2 + x3"
+  fit <- lavaan::cfa(
+    model=local_model,
+    data=hs$data,
+    estimator="MLMV"
+  )
+  fit_svy <- lavaan.survey(fit, hs$design, estimator="MLMV")
+
+  p_value <- pval.pFsum(fit_svy, hs$design)
+
+  expect_true("scaled.shifted" %in%
+                lavaan::lavInspect(fit_svy, "options")$test)
+  expect_true(is.numeric(p_value))
+  expect_equal(length(p_value), 1L)
+  expect_true(is.na(p_value) || (p_value >= 0 && p_value <= 1))
+})
+
+test_that("U.Gamma lists are combined block-diagonally", {
+  UGamma <- list(diag(2), diag(c(3, 4)))
+  UGamma.block <- lavaan.survey:::as.ugamma.matrix(UGamma)
+
+  expect_equal(dim(UGamma.block), c(4L, 4L))
+  expect_equal(diag(UGamma.block), c(1, 1, 3, 4))
+  expect_equal(UGamma.block[1:2, 3:4], matrix(0, 2, 2))
+  expect_equal(UGamma.block[3:4, 1:2], matrix(0, 2, 2))
+})

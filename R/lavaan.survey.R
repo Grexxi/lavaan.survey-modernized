@@ -640,16 +640,36 @@ get.sample.nobs  <- function(svy.imp.design) {
 # The eigenvalues of the U.Gamma matrix will be the coefficients in the 
 #   mixture of F's distribution (Skinner, Holt & Smith, pp. 86-87).
 pval.pFsum <- function(lavaan.fit, survey.design, method = "saddlepoint") {
-  # Check that Satorra-Bentler or Satterthwaite adjustment is present
+  # Check that a robust lavaan test with U.Gamma information is present.
   test.options <- lavInspect(lavaan.fit, "options")$test
-  if(!any(test.options %in% c("satorra.bentler", "mean.var.adjusted", "Satterthwaite"))) {
-    stop("Please refit the model with Satorra-Bentler (MLM) or Satterthwaite (MLMVS) adjustment.") 
+  robust.tests <- c("satorra.bentler", "scaled.shifted", "mean.var.adjusted")
+  if(!any(test.options %in% robust.tests)) {
+    stop("Please refit the model with a robust lavaan test (MLM, MLMV, or MLMVS).")
   }
   
-  UGamma <- lavTech(lavaan.fit, "ugamma")
+  UGamma <- get.ugamma.matrix(lavaan.fit)
   real.eigen.values <- Re(eigen(UGamma, only.values = TRUE)$values)
 
   return(survey::pFsum(x=fitMeasures(lavaan.fit, "chisq"), df=rep(1, length(real.eigen.values)), 
                 a=real.eigen.values, ddf=survey::degf(survey.design), lower.tail=FALSE,
                 method=method))
+}
+
+get.ugamma.matrix <- function(lavaan.fit) {
+  as.ugamma.matrix(lavTech(lavaan.fit, "ugamma"))
+}
+
+as.ugamma.matrix <- function(UGamma) {
+  if(is.list(UGamma)) {
+    if(!all(vapply(UGamma, is.matrix, logical(1)))) {
+      stop("Could not extract U.Gamma as a matrix or list of matrices.")
+    }
+    UGamma <- lavaan::lav_matrix_bdiag(UGamma)
+  }
+
+  if(!is.matrix(UGamma)) {
+    stop("Could not extract U.Gamma as a matrix.")
+  }
+
+  UGamma
 }
