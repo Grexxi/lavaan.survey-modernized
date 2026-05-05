@@ -237,8 +237,7 @@ lavaan.survey.ordinal <-
            rep.type="auto", replicates=NULL,
            point.wls=c("auto", "lavaan", "design"),
            mi.pooling=c("auto", "parameters", "sample.statistics"),
-           within.variance=c("auto", "replicate", "lavaan.robust", "naive"),
-           cluster=NULL) {
+           within.variance=c("auto", "replicate", "lavaan.robust", "naive")) {
 
   estimator <- match.arg(estimator)
   point.wls <- match.arg(point.wls)
@@ -321,7 +320,7 @@ lavaan.survey.ordinal <-
       lavaan.fit=lavaan.fit, rep.design=rep.design, ordered=ordered,
       estimator=estimator, point.wls=point.wls, rep.type=rep.type,
       replicates=replicates, within.variance=within.variance,
-      cluster=cluster, survey.info=survey.info
+      survey.info=survey.info
     )
     inform.ordinal.survey.info(survey.info)
     return(fit)
@@ -372,7 +371,12 @@ lavaan.survey.ordinal <-
   new.call$WLS.V <- WLS.V
   new.call$NACOV <- Gamma
 
-  fit <- eval(as.call(new.call), envir=parent.frame())
+  fit <- tryCatch(
+    eval(as.call(new.call), envir=parent.frame()),
+    error=function(e) {
+      stop("Ordinal survey refit failed: ", conditionMessage(e), call.=FALSE)
+    }
+  )
   fit <- attach.ordinal.survey.info(fit, survey.info)
   inform.ordinal.survey.info(survey.info)
   fit
@@ -632,7 +636,6 @@ pool.ordinal.mi.parameters <- function(lavaan.fit, rep.design, ordered,
                                        estimator, point.wls, rep.type,
                                        replicates,
                                        within.variance="naive",
-                                       cluster=NULL,
                                        survey.info=NULL) {
   if(point.wls != "lavaan" && within.variance != "replicate") {
     stop("within.variance = \"", within.variance, "\" is only available with ",
@@ -647,21 +650,45 @@ pool.ordinal.mi.parameters <- function(lavaan.fit, rep.design, ordered,
          "\"naive\".")
   }
   fits <- if(point.wls == "lavaan") {
-    lapply(rep.design$designs, fit.ordinal.weighted.lavaan,
-           lavaan.fit=lavaan.fit, ordered=ordered, estimator=estimator)
+    lapply(seq_along(rep.design$designs), function(i) {
+      fit <- tryCatch(
+        fit.ordinal.weighted.lavaan(
+          design=rep.design$designs[[i]],
+          lavaan.fit=lavaan.fit,
+          ordered=ordered,
+          estimator=estimator
+        ),
+        error=function(e) {
+          stop("Imputation ", i, " failed: ", conditionMessage(e), call.=FALSE)
+        }
+      )
+      if(!isTRUE(try(lavaan::lavInspect(fit, "converged"), silent=TRUE))) {
+        stop("Imputation ", i, " did not converge.", call.=FALSE)
+      }
+      fit
+    })
   }
   else {
-    lapply(rep.design$designs, function(design) {
-      suppressWarnings(lavaan.survey.ordinal(
-        lavaan.fit=lavaan.fit,
-        survey.design=design,
-        ordered=ordered,
-        estimator=estimator,
-        rep.type=rep.type,
-        replicates=replicates,
-        point.wls=point.wls,
-        mi.pooling="sample.statistics"
-      ))
+    lapply(seq_along(rep.design$designs), function(i) {
+      fit <- tryCatch(
+        suppressWarnings(lavaan.survey.ordinal(
+          lavaan.fit=lavaan.fit,
+          survey.design=rep.design$designs[[i]],
+          ordered=ordered,
+          estimator=estimator,
+          rep.type=rep.type,
+          replicates=replicates,
+          point.wls=point.wls,
+          mi.pooling="sample.statistics"
+        )),
+        error=function(e) {
+          stop("Imputation ", i, " failed: ", conditionMessage(e), call.=FALSE)
+        }
+      )
+      if(!isTRUE(try(lavaan::lavInspect(fit, "converged"), silent=TRUE))) {
+        stop("Imputation ", i, " did not converge.", call.=FALSE)
+      }
+      fit
     })
   }
 
@@ -739,9 +766,20 @@ estimate.replicate.parameter.vcov <- function(design, point.fit, lavaan.fit,
   }
 
   keep <- stats::complete.cases(rep.coef)
-  if(sum(keep) < 2L) {
-    stop("Fewer than two replicate lavaan fits converged; cannot estimate ",
-         "within-imputation replicate variance.")
+  n.total <- nrow(rep.coef)
+  n.keep <- sum(keep)
+  min.keep <- min(10L, max(2L, ceiling(n.total / 2)))
+  if(n.keep < min.keep) {
+    stop("Only ", n.keep, " of ", n.total,
+         " replicate lavaan fits converged; cannot estimate a stable ",
+         "within-imputation replicate variance.", call.=FALSE)
+  }
+  failure.rate <- 1 - n.keep / n.total
+  if(failure.rate > 0.10) {
+    warning(sprintf(
+      "%.0f%% of replicate lavaan fits did not converge. The replicate-based within-imputation variance estimate may underestimate uncertainty.",
+      100 * failure.rate
+    ), call.=FALSE)
   }
 
   V <- survey::svrVar(rep.coef[keep, , drop=FALSE],
@@ -775,6 +813,10 @@ infer.sampling.weight.name <- function(design, data) {
 pool.lavaan.mi.parameters <- function(fits, vcov.list=NULL) {
   if(length(fits) == 0L) {
     stop("At least one fitted lavaan object is required for MI parameter pooling.")
+  }
+  if(!is.null(vcov.list) && length(vcov.list) != length(fits)) {
+    stop("vcov.list (", length(vcov.list), ") and fits (", length(fits),
+         ") must have the same length.")
   }
 
   ref.names <- names(lavaan::coef(fits[[1]]))
