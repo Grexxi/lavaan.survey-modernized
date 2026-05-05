@@ -316,6 +316,7 @@ test_that("mixed MI survey models pool thresholds, means, and correlations", {
     point.wls="design",
     mi.pooling="sample.statistics"
   ))
+  survey_info <- attr(fit_survey, "lavaan.survey.info")
 
   per_imputation <- lapply(
     rep_design$designs,
@@ -332,6 +333,9 @@ test_that("mixed MI survey models pool thresholds, means, and correlations", {
   sampstat <- lavaan::lavInspect(fit_survey, "sampstat")
   Gamma <- lavaan::lavTech(fit_survey, "gamma")[[1]]
 
+  expect_equal(survey_info$mode, "mixed ordinal/continuous")
+  expect_equal(survey_info$mi.pooling, "sample.statistics")
+  expect_equal(survey_info$point.wls, "design")
   expect_true(lavaan::lavInspect(fit_survey, "converged"))
   expect_equal(names(expected$point.stats$wls.obs),
                c("y1|t1", "y1|t2", "y2|t1", "y2|t2", "x1~1", "x2~1",
@@ -536,15 +540,23 @@ test_that("mixed MI defaults to the Mplus-nearer parameter-pooling path", {
   )
   fit <- fit_mixed_indicator_model(imputed_data[[1]])
 
-  fit_default <- suppressWarnings(lavaan.survey.ordinal(
+  fit_default <- expect_message(suppressWarnings(lavaan.survey.ordinal(
     lavaan.fit=fit,
     survey.design=rep_design,
     estimator="WLSMV"
-  ))
+  )), "lavaan\\.survey\\.ordinal mode: mixed ordinal/continuous")
 
   expect_s3_class(fit_default, "lavaan.survey.mi")
   expect_equal(fit_default$point.wls, "lavaan")
   expect_equal(fit_default$mi.pooling, "parameters")
+  expect_equal(fit_default$survey.info$mode, "mixed ordinal/continuous")
+  expect_equal(fit_default$survey.info$mi.pooling, "parameters")
+  expect_equal(fit_default$survey.info$point.wls, "lavaan")
+  printed <- utils::capture.output(print(fit_default))
+  expect_true(any(grepl("lavaan.survey.ordinal mode: mixed ordinal/continuous",
+                        printed, fixed=TRUE)))
+  expect_true(any(grepl("MI pooling: parameters", printed, fixed=TRUE)))
+  expect_true(any(grepl("Point WLS: lavaan", printed, fixed=TRUE)))
   expect_true(all(is.finite(coef(fit_default))))
 })
 

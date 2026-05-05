@@ -273,16 +273,23 @@ lavaan.survey.ordinal <-
   if(mi.pooling == "auto") {
     mi.pooling <- if(is.mi.design && !all.ordinal) "parameters" else "sample.statistics"
   }
+  survey.info <- make.ordinal.survey.info(mode=if(all.ordinal) "ordinal" else "mixed ordinal/continuous",
+                                          point.wls=point.wls,
+                                          mi.pooling=if(is.mi.design) mi.pooling else "none",
+                                          estimator=estimator,
+                                          multiple.imputation=is.mi.design)
 
   if(mi.pooling == "parameters") {
     if(!is.mi.design) {
       stop("mi.pooling = \"parameters\" requires a svyimputationList survey design.")
     }
-    return(pool.ordinal.mi.parameters(
+    fit <- pool.ordinal.mi.parameters(
       lavaan.fit=lavaan.fit, rep.design=rep.design, ordered=ordered,
       estimator=estimator, point.wls=point.wls, rep.type=rep.type,
-      replicates=replicates
-    ))
+      replicates=replicates, survey.info=survey.info
+    )
+    inform.ordinal.survey.info(survey.info)
+    return(fit)
   }
 
   if(is.mi.design) {
@@ -330,7 +337,10 @@ lavaan.survey.ordinal <-
   new.call$WLS.V <- WLS.V
   new.call$NACOV <- Gamma
 
-  eval(as.call(new.call), envir=parent.frame())
+  fit <- eval(as.call(new.call), envir=parent.frame())
+  fit <- attach.ordinal.survey.info(fit, survey.info)
+  inform.ordinal.survey.info(survey.info)
+  fit
 }
 
 get.ordinal.survey.stats <- function(rep.design, ov.names, ordered,
@@ -540,9 +550,34 @@ get.ordinal.point.wls <- function(Gamma, point.stats, point.wls, group=NULL) {
   WLS.V
 }
 
+make.ordinal.survey.info <- function(mode, point.wls, mi.pooling, estimator,
+                                     multiple.imputation) {
+  list(function.name="lavaan.survey.ordinal",
+       mode=mode,
+       mi.pooling=mi.pooling,
+       point.wls=point.wls,
+       estimator=estimator,
+       multiple.imputation=multiple.imputation)
+}
+
+attach.ordinal.survey.info <- function(fit, survey.info) {
+  attr(fit, "lavaan.survey.info") <- survey.info
+  fit
+}
+
+format.ordinal.survey.info <- function(survey.info) {
+  c(paste0("lavaan.survey.ordinal mode: ", survey.info$mode),
+    paste0("MI pooling: ", survey.info$mi.pooling),
+    paste0("Point WLS: ", survey.info$point.wls))
+}
+
+inform.ordinal.survey.info <- function(survey.info) {
+  message(paste(format.ordinal.survey.info(survey.info), collapse="\n"))
+}
+
 pool.ordinal.mi.parameters <- function(lavaan.fit, rep.design, ordered,
                                        estimator, point.wls, rep.type,
-                                       replicates) {
+                                       replicates, survey.info=NULL) {
   fits <- if(point.wls == "lavaan") {
     lapply(rep.design$designs, fit.ordinal.weighted.lavaan,
            lavaan.fit=lavaan.fit, ordered=ordered, estimator=estimator)
@@ -567,6 +602,8 @@ pool.ordinal.mi.parameters <- function(lavaan.fit, rep.design, ordered,
   pooled$estimator <- estimator
   pooled$point.wls <- point.wls
   pooled$mi.pooling <- "parameters"
+  pooled$survey.info <- survey.info
+  pooled <- attach.ordinal.survey.info(pooled, survey.info)
   pooled
 }
 
@@ -680,6 +717,10 @@ vcov.lavaan.survey.mi <- function(object, ...) {
 
 print.lavaan.survey.mi <- function(x, ...) {
   cat("lavaan.survey multiply imputed ordinal survey fit\n")
+  if(!is.null(x$survey.info)) {
+    cat(paste0("  ", format.ordinal.survey.info(x$survey.info)), sep="\n")
+    cat("\n")
+  }
   cat("  Imputations:", x$m, "\n")
   cat("  Parameter pooling: Rubin\n")
   cat("  Point WLS:", x$point.wls %||% "unknown", "\n")

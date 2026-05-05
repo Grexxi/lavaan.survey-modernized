@@ -29,6 +29,9 @@ endorsed by the original author/maintainer.
   The `auto` defaults use this Mplus-nearer path for mixed
   ordinal/continuous MI models, while retaining the pooled-statistic default
   for all-ordinal MI models.
+* `lavaan.survey.ordinal()` now reports the resolved mode, MI pooling strategy,
+  and point-WLS strategy when it runs, and stores the same metadata in
+  `attr(fit, "lavaan.survey.info")`.
 
 ## Compatibility and bug fixes
 

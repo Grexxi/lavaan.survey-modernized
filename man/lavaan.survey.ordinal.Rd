@@ -73,7 +73,9 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
   the defaults use a Mplus-nearer parameter-pooling path for mixed MI models,
   while \code{point.wls = "design"} and \code{mi.pooling = "sample.statistics"}
   keep the original design-based pooled-statistic implementation available for
-  sensitivity checks.
+  sensitivity checks. The selected mode, MI pooling strategy, and point WLS
+  strategy are printed when the function runs and stored as
+  \code{attr(fit, "lavaan.survey.info")}.
 }
 \value{
   An object of class \code{\linkS4class{lavaan}} for
