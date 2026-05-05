@@ -18,8 +18,8 @@ endorsed by the original author/maintainer.
   the survey design is a `svyimputationList`.
 * Added an experimental proof-of-concept path for mixed ordinal/continuous
   observed variables in `lavaan.survey.ordinal()` single-group and
-  multiple-group models. The mixed path delegates WLS sample-statistic ordering
-  to lavaan.
+  multiple-group models, plus single-group multiple imputation. The mixed path
+  delegates WLS sample-statistic ordering to lavaan.
 
 ## Compatibility and bug fixes
 
@@ -50,6 +50,8 @@ endorsed by the original author/maintainer.
   models, including loading and threshold invariance constraints.
 * Added regression coverage for mixed ordinal/continuous multiple-group survey
   CFA, including loading, threshold, and intercept invariance constraints.
+* Added regression coverage for mixed ordinal/continuous single-group
+  multiple-imputation survey CFA.
 * Documented the continuous multiple-imputation survey workflow in the README.
 * Added a continuous multiple-imputation Mplus Demo validation workflow using
   the same ten imputed datasets in Mplus and `lavaan.survey()`.
@@ -76,5 +78,5 @@ endorsed by the original author/maintainer.
 ## Current limitations
 
 * Mixed continuous/ordinal observed-variable sets are still experimental.
-  Multiple-imputation and Mplus validation workflows for mixed indicators
-  remain future work.
+  Multiple-group multiple-imputation and Mplus validation workflows for mixed
+  indicators remain future work.

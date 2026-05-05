@@ -37,6 +37,40 @@ make_mixed_indicator_group_data <- function(n=400) {
   )
 }
 
+make_mixed_indicator_mi_data <- function() {
+  data <- make_mixed_indicator_data()
+  n <- nrow(data)
+
+  set.seed(2603)
+  missing_y2 <- sample(seq_len(n), 60)
+  missing_x2 <- sample(setdiff(seq_len(n), missing_y2), 55)
+  data$y2[missing_y2] <- NA
+  data$x2[missing_x2] <- NA
+
+  lapply(seq_len(3), function(i) {
+    imputed <- data
+    set.seed(9300 + i)
+
+    observed_y2 <- imputed$y2[!is.na(imputed$y2)]
+    imputed$y2[is.na(imputed$y2)] <- sample(
+      observed_y2,
+      sum(is.na(imputed$y2)),
+      replace=TRUE
+    )
+    imputed$y2 <- ordered(imputed$y2, levels=levels(data$y2))
+
+    observed_x2 <- imputed$x2[!is.na(imputed$x2)]
+    n_missing_x2 <- sum(is.na(imputed$x2))
+    imputed$x2[is.na(imputed$x2)] <- sample(
+      observed_x2,
+      n_missing_x2,
+      replace=TRUE
+    ) + stats::rnorm(n_missing_x2, sd=0.05)
+
+    imputed
+  })
+}
+
 fit_mixed_indicator_model <- function(data, group=NULL, group.equal=NULL,
                                       meanstructure=NULL) {
   args <- list(
@@ -211,6 +245,65 @@ test_that("mixed multiple-group models preserve invariance constraints", {
   expect_true(any(loadings$label != ""))
   expect_true(any(thresholds$label != ""))
   expect_true(any(intercepts$label != ""))
+  expect_true(is.finite(lavaan::fitMeasures(fit_survey, "chisq.scaled")))
+})
+
+test_that("mixed MI survey models pool thresholds, means, and correlations", {
+  skip_if_not_installed("mitools")
+
+  imputed_data <- make_mixed_indicator_mi_data()
+  imputation_list <- mitools::imputationList(imputed_data)
+  design <- survey::svydesign(
+    ids=~cluster,
+    strata=~stratum,
+    weights=~weight,
+    data=imputation_list,
+    nest=TRUE
+  )
+  rep_design <- survey::as.svrepdesign(
+    design,
+    type="bootstrap",
+    replicates=8
+  )
+  fit <- fit_mixed_indicator_model(imputed_data[[1]])
+
+  fit_survey <- suppressWarnings(lavaan.survey.ordinal(
+    lavaan.fit=fit,
+    survey.design=rep_design,
+    estimator="WLSMV"
+  ))
+
+  per_imputation <- lapply(
+    rep_design$designs,
+    lavaan.survey:::get.ordinal.survey.stats,
+    ov.names=c("y1", "y2", "x1", "x2"),
+    ordered=c("y1", "y2"),
+    ngroups=1
+  )
+  expected <- lavaan.survey:::pool.ordinal.mi.stats(
+    per_imputation,
+    ngroups=1
+  )
+
+  sampstat <- lavaan::lavInspect(fit_survey, "sampstat")
+  Gamma <- lavaan::lavTech(fit_survey, "gamma")[[1]]
+
+  expect_true(lavaan::lavInspect(fit_survey, "converged"))
+  expect_equal(names(expected$point.stats$wls.obs),
+               c("y1|t1", "y1|t2", "y2|t1", "y2|t2", "x1~1", "x2~1",
+                 "x1~~x1", "x2~~x2", "y1~~y2", "y1~~x1", "y1~~x2",
+                 "y2~~x1", "y2~~x2", "x1~~x2"))
+  expect_equal(unclass(as.matrix(sampstat$cov)),
+               unclass(as.matrix(expected$point.stats$sample.cov)),
+               tolerance=1e-10, check.attributes=FALSE)
+  expect_equal(as.numeric(sampstat$mean),
+               as.numeric(expected$point.stats$sample.mean),
+               tolerance=1e-10, check.attributes=FALSE)
+  expect_equal(as.numeric(sampstat$th),
+               as.numeric(expected$point.stats$sample.th),
+               tolerance=1e-10, check.attributes=FALSE)
+  expect_equal(Gamma, expected$Gamma,
+               tolerance=1e-10, check.attributes=FALSE)
   expect_true(is.finite(lavaan::fitMeasures(fit_survey, "chisq.scaled")))
 })
 
