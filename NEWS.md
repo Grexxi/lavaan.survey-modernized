@@ -100,6 +100,9 @@ endorsed by the original author/maintainer.
   Rubin-pooled parameter tests, combining the imputation degrees of freedom
   with the complete-data degrees of freedom from the survey design when
   available.
+* Stores ordinal survey metadata for `lavaan.survey.mi` objects in
+  `attr(fit, "lavaan.survey.info")` as the single source of truth, with a
+  legacy fallback for older objects.
 * Removes the unused experimental `cluster` argument from
   `lavaan.survey.ordinal()`; cluster and strata information continue to come
   from the supplied `survey` design or replicate design.

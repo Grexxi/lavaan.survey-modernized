@@ -606,6 +606,28 @@ attach.ordinal.survey.info <- function(fit, survey.info) {
   fit
 }
 
+get.ordinal.survey.info <- function(fit) {
+  survey.info <- attr(fit, "lavaan.survey.info")
+  if(!is.null(survey.info)) return(survey.info)
+
+  if(is.list(fit) && !is.null(fit$survey.info)) {
+    return(fit$survey.info)
+  }
+
+  if(is.list(fit)) {
+    fields <- c("mode", "mi.pooling", "point.wls", "estimator",
+                "multiple.imputation", "within.variance")
+    survey.info <- list()
+    for(field in fields) {
+      value <- fit[[field]]
+      if(!is.null(value)) survey.info[[field]] <- value
+    }
+    if(length(survey.info)) return(survey.info)
+  }
+
+  NULL
+}
+
 format.ordinal.survey.info <- function(survey.info) {
   out <- c(paste0("lavaan.survey.ordinal mode: ", survey.info$mode),
            paste0("MI pooling: ", survey.info$mi.pooling),
@@ -709,11 +731,6 @@ pool.ordinal.mi.parameters <- function(lavaan.fit, rep.design, ordered,
   )
   pooled$call <- lavInspect(lavaan.fit, "call")
   pooled$ordered <- ordered
-  pooled$estimator <- estimator
-  pooled$point.wls <- point.wls
-  pooled$mi.pooling <- "parameters"
-  pooled$within.variance <- within.variance
-  pooled$survey.info <- survey.info
   pooled <- attach.ordinal.survey.info(pooled, survey.info)
   pooled
 }
@@ -914,14 +931,15 @@ vcov.lavaan.survey.mi <- function(object, ...) {
 
 print.lavaan.survey.mi <- function(x, ...) {
   cat("lavaan.survey multiply imputed ordinal survey fit\n")
-  if(!is.null(x$survey.info)) {
-    cat(paste0("  ", format.ordinal.survey.info(x$survey.info)), sep="\n")
+  survey.info <- get.ordinal.survey.info(x)
+  if(!is.null(survey.info)) {
+    cat(paste0("  ", format.ordinal.survey.info(survey.info)), sep="\n")
     cat("\n")
   }
   cat("  Imputations:", x$m, "\n")
   cat("  Parameter pooling: Rubin\n")
-  cat("  Point WLS:", x$point.wls %||% "unknown", "\n")
-  cat("  Within variance:", x$within.variance %||% "unknown", "\n")
+  cat("  Point WLS:", survey.info$point.wls %||% "unknown", "\n")
+  cat("  Within variance:", survey.info$within.variance %||% "unknown", "\n")
   invisible(x)
 }
 
