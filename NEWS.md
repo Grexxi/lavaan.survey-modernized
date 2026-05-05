@@ -47,6 +47,8 @@ endorsed by the original author/maintainer.
   the same ten imputed datasets in Mplus and `lavaan.survey()`.
 * Added an ordinal multiple-imputation Mplus Demo validation workflow using
   the same ten imputed datasets in Mplus and `lavaan.survey.ordinal()`.
+* Added an ordinal multiple-group Mplus Demo validation workflow for
+  loading/threshold/intercept invariance with weights, clusters, and strata.
 * Updated legacy numerical tolerances for current `lavaan` and `survey`
   versions.
 
