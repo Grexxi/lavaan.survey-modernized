@@ -10,9 +10,10 @@ lavaan.survey <-
   estimator <- match.arg(estimator) 
   if(estimator=="ML") warning("Estimator 'ML' will not correct standard errors and chi-square statistic.")
   estimator.gamma <- match.arg(estimator.gamma) # Smoothing Gamma or not
+  meanstructure <- isTRUE(lavInspect(lavaan.fit, "options")$meanstructure)
   
   # Names of the observed variables (same for each group)
-  ov.names <- lavaanNames(lavaan.fit, type="ov", group=1)
+  ov.names <- lavNames(lavaan.fit, type="ov", group=1)
   
   # The MP-inverse duplication matrix is handy for removing redundancy
   Dplus <- lavaan::lav_matrix_duplication_ginv( length(ov.names) )
@@ -32,9 +33,9 @@ lavaan.survey <-
     if(ngroups > 1) {
       # Use survey::subset to create data groups
       survey.design.g <- 
-        subset(survey.design, eval(parse(text=sprintf("%s == '%s'", 
-                                                      lavInspect(lavaan.fit, "group"), 
-                                                      lavInspect(lavaan.fit, "group.label")[[g]]))))
+        subset.survey.group(survey.design,
+                            lavInspect(lavaan.fit, "group"),
+                            lavInspect(lavaan.fit, "group.label")[[g]])
     } 
     else { # In case of no groups, just use the original survey design object.
       survey.design.g <- survey.design  
@@ -48,28 +49,37 @@ lavaan.survey <-
       # Remove (co)variances wrt redundant elements of covs; not used by lavaan. 
       Gamma.cov.g <- Dplus %*% Gamma.cov.g %*% t(Dplus)
       
-      # Same for mean vector
-      sample.mean.g <- svymean(ov.formula, design=survey.design.g, na.rm=TRUE)  
-      Gamma.mean.g <- attr(sample.mean.g, "var")
-      
-      # Join asy. variance matrices for means and covariances
-      # TODO add offdiag
-      Gamma.g <- lavaan::lav_matrix_bdiag(Gamma.mean.g, Gamma.cov.g)
+      if(meanstructure) {
+        # Same for mean vector
+        sample.mean.g <- svymean(ov.formula, design=survey.design.g, na.rm=TRUE)
+        Gamma.mean.g <- attr(sample.mean.g, "var")
+
+        # Join asy. variance matrices for means and covariances
+        # TODO add offdiag
+        Gamma.g <- lavaan::lav_matrix_bdiag(Gamma.mean.g, Gamma.cov.g)
+      }
+      else {
+        sample.mean.g <- NULL
+        Gamma.g <- Gamma.cov.g
+      }
       
       Gamma.g <- Gamma.g * sample.nobs.g # lavaan wants nobs * Gamma.
       
       # Since the above nonparametric estimate of Gamma can be unstable, Yuan
       # and Bentler suggested a model-smoothed estimate of it, optional here:
       if(estimator.gamma == "Yuan-Bentler") {
-        r <- get.residuals(lavaan.fit, group=g) # Iff these asy = 0, all will be well...
+        r <- get.residuals(lavaan.fit, group=g,
+                           meanstructure=meanstructure) # Iff these asy = 0, all will be well...
         Gamma.g <- Gamma.g + (sample.nobs.g/(sample.nobs.g - 1)) * (r %*% t(r))
       }
       # Get rid of attribute, preventing errors caused by lazy evaluation
       # (This has to be at the end or lazy evaluation mayhem will ensue)
       attr(sample.cov.g, "var") <- NULL
-      tmp  <- as.vector(sample.mean.g)
-      names(tmp) <- names(sample.mean.g)
-      sample.mean.g <- tmp	
+      if(meanstructure) {
+        tmp  <- as.vector(sample.mean.g)
+        names(tmp) <- names(sample.mean.g)
+        sample.mean.g <- tmp
+      }
       
       list(Gamma.g=Gamma.g, sample.cov.g=sample.cov.g, sample.mean.g=sample.mean.g)
     }
@@ -82,7 +92,7 @@ lavaan.survey <-
     } 
     else { # In case of multiply imputed data
       # Not only can nobs differ from lavaan.fit, but also per imputation
-      sample.nobs.g <- get.sample.nobs(survey.design.g, lavInspect(lavaan.fit, "group"))
+      sample.nobs.g <- get.sample.nobs(survey.design.g)
       
       # Retrieve point and variance estimates per imputation.
       stats.list <- lapply(survey.design.g$designs, get.stats.design,
@@ -92,15 +102,22 @@ lavaan.survey <-
       # Point estimates are average over imputations
       sample.cov.list <- lapply(stats.list, `[[`, 'sample.cov.g')
       sample.cov.g <- Reduce(`+`, sample.cov.list) / m
-      cov.df <- Reduce(`rbind`, lapply(sample.cov.list, lavaan::lav_matrix_vech))
-      sample.mean.list <- lapply(stats.list, `[[`, 'sample.mean.g')
-      sample.mean.g <- Reduce(`+`, sample.mean.list) / m
-      mean.df <- Reduce(`rbind`, sample.mean.list)
+      cov.df <- do.call(rbind, lapply(sample.cov.list, lavaan::lav_matrix_vech))
+      if(meanstructure) {
+        sample.mean.list <- lapply(stats.list, `[[`, 'sample.mean.g')
+        sample.mean.g <- Reduce(`+`, sample.mean.list) / m
+        mean.df <- do.call(rbind, sample.mean.list)
+      }
+      else {
+        sample.mean.g <- NULL
+        mean.df <- NULL
+      }
       
       # Variance estimates depend on within- and between-imputation variance:
       Gamma.within  <- Reduce(`+`, lapply(stats.list, `[[`, 'Gamma.g')) / m
       if(m > 1L) {
-        Gamma.between <- cov(cbind(mean.df, cov.df))
+        between.df <- if(meanstructure) cbind(mean.df, cov.df) else cov.df
+        Gamma.between <- cov(between.df)
       }
       else {
         Gamma.between <- matrix(0, nrow=nrow(Gamma.within),
@@ -116,14 +133,15 @@ lavaan.survey <-
     # Augment the list for this group
     Gamma[[g]] <- stats$Gamma.g
     sample.cov[[g]] <- stats$sample.cov.g
-    sample.mean[[g]] <- stats$sample.mean.g
+    sample.mean[g] <- list(stats$sample.mean.g)
     sample.nobs[[g]] <- sample.nobs.g
   } # End of loop over groups
 
   new.call <- lavInspect(lavaan.fit, "call")
   new.call$data <- NULL                # Remove any data argument
   new.call$sample.cov <- sample.cov    # Set survey covariances
-  new.call$sample.mean <- sample.mean  # Set survey means
+  if(meanstructure) new.call$sample.mean <- sample.mean  # Set survey means
+  else new.call$sample.mean <- NULL
   new.call$sample.nobs <- sample.nobs  
   new.call$estimator <- estimator  # Always use Satorra-Bentler or WLS estimator
 
@@ -204,8 +222,8 @@ lavaan.survey.ordinal <-
     group.var <- lavInspect(lavaan.fit, "group")
     group.labels <- lavInspect(lavaan.fit, "group.label")
   }
-  ov.names <- lavaan::lavNames(lavaan.fit, type="ov", group=1)
-  if(is.null(ordered)) ordered <- lavaan::lavNames(lavaan.fit, type="ov.ord", group=1)
+  ov.names <- lavNames(lavaan.fit, type="ov", group=1)
+  if(is.null(ordered)) ordered <- lavNames(lavaan.fit, type="ov.ord", group=1)
   if(length(ordered) == 0) {
     stop("No ordered variables were found. Please fit lavaan with ordered= or pass ordered=.")
   }
@@ -561,9 +579,18 @@ get.ordinal.wls.obs <- function(sample.stats) {
   c(sample.stats$th, cov.obs)
 }
 
+# Safely subset survey designs by lavaan group labels. Avoid parse(text=...),
+# because group labels can contain quotes or other non-syntactic characters.
+subset.survey.group <- function(survey.design, group.var, group.label) {
+  eval(substitute(
+    subset(survey.design, get(GROUPVAR) == GROUPLABEL),
+    list(GROUPVAR=group.var, GROUPLABEL=group.label)
+  ))
+}
+
 # Obtain residuals from a lavaan fit object, concatenating means w/ covariances
 # (used in Yuan-Bentler correction)
-get.residuals <- function(fit, group=1) {
+get.residuals <- function(fit, group=1, meanstructure=TRUE) {
     r <- lavaan::residuals(fit)
     
     if(!is.null(r$cov)) {
@@ -573,15 +600,16 @@ get.residuals <- function(fit, group=1) {
       r.g <- r[[group]]
       if(is.null(r.g)) stop("Could not find residuals for group ", group, ".")
     }
-    
-    c(r.g$mean, lavaan::lav_matrix_vech(r.g$cov))
+
+    if(meanstructure) c(r.g$mean, lavaan::lav_matrix_vech(r.g$cov))
+    else lavaan::lav_matrix_vech(r.g$cov)
 }
 
 # Obtain the diagonal DWLS weight matrix from Gamma.
 get.dwls.weight <- function(Gamma) {
     gamma.diag <- diag(Gamma)
     w <- rep(0, length(gamma.diag))
-    use <- abs(gamma.diag) > .Machine$double.eps
+    use <- gamma.diag > .Machine$double.eps
     w[use] <- 1 / gamma.diag[use]
     W <- diag(w, nrow=length(w))
     dimnames(W) <- dimnames(Gamma)
@@ -590,8 +618,9 @@ get.dwls.weight <- function(Gamma) {
 
 # Obtain sample size from multiply imputed svydesign object.
 # In case sample size differs over imputations, takes median over imputations.
-# TODO: Does not work with multiple group yet.
-get.sample.nobs  <- function(svy.imp.design, group=NULL) {
+# For multiple-group models, lavaan.survey subsets the svyimputationList by
+# group before calling this helper.
+get.sample.nobs  <- function(svy.imp.design) {
   if(!inherits(svy.imp.design, "svyimputationList")) {
     stop("Expected a svyimputationList object.")
   }
@@ -611,16 +640,41 @@ get.sample.nobs  <- function(svy.imp.design, group=NULL) {
 # The eigenvalues of the U.Gamma matrix will be the coefficients in the 
 #   mixture of F's distribution (Skinner, Holt & Smith, pp. 86-87).
 pval.pFsum <- function(lavaan.fit, survey.design, method = "saddlepoint") {
-  # Check that Satorra-Bentler or Satterthwaite adjustment is present
+  # Check that a robust lavaan test with U.Gamma information is present.
   test.options <- lavInspect(lavaan.fit, "options")$test
-  if(!any(test.options %in% c("satorra.bentler", "mean.var.adjusted", "Satterthwaite"))) {
-    stop("Please refit the model with Satorra-Bentler (MLM) or Satterthwaite (MLMVS) adjustment.") 
+  robust.tests <- c("satorra.bentler", "scaled.shifted", "mean.var.adjusted")
+  if(!any(test.options %in% robust.tests)) {
+    stop("Please refit the model with a robust lavaan test (MLM, MLMV, or MLMVS).")
   }
   
-  UGamma <- lavTech(lavaan.fit, "ugamma")
+  UGamma <- get.ugamma.matrix(lavaan.fit)
   real.eigen.values <- Re(eigen(UGamma, only.values = TRUE)$values)
 
   return(survey::pFsum(x=fitMeasures(lavaan.fit, "chisq"), df=rep(1, length(real.eigen.values)), 
                 a=real.eigen.values, ddf=survey::degf(survey.design), lower.tail=FALSE,
                 method=method))
+}
+
+get.ugamma.matrix <- function(lavaan.fit) {
+  as.ugamma.matrix(lavTech(lavaan.fit, "ugamma"))
+}
+
+as.ugamma.matrix <- function(UGamma) {
+  if(is.list(UGamma)) {
+    if(length(UGamma) == 0L ||
+       !all(vapply(UGamma, is.square.matrix, logical(1)))) {
+      stop("Could not extract U.Gamma as a square matrix or list of square matrices.")
+    }
+    UGamma <- lavaan::lav_matrix_bdiag(UGamma)
+  }
+
+  if(!is.square.matrix(UGamma)) {
+    stop("Could not extract U.Gamma as a square matrix.")
+  }
+
+  UGamma
+}
+
+is.square.matrix <- function(x) {
+  is.matrix(x) && length(dim(x)) == 2L && nrow(x) == ncol(x)
 }

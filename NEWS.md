@@ -54,6 +54,11 @@ endorsed by the original author/maintainer.
   `lavaan.survey.ordinal()`.
 * Added a vignette for ordinal survey SEM with multiple imputation and
   multiple-group models.
+* Updated manual pages for the modernization fork, ordinal support, replicate
+  designs, multiple-imputation survey designs, and current robust lavaan test
+  names.
+* Replaced legacy `lavaanNames()` usage with `lavNames()` and added
+  regression coverage for `pval.pFsum()` in constrained multiple-group models.
 * Updated legacy numerical tolerances for current `lavaan` and `survey`
   versions.
 

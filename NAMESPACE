@@ -5,7 +5,7 @@ importFrom("survey",
             degf,
             pFsum)
 importFrom("lavaan",
-            lavaanNames,
+            lavNames,
             lav_matrix_vech,
             lav_matrix_duplication_ginv,
             lav_matrix_bdiag,
