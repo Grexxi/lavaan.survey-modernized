@@ -37,6 +37,46 @@ make_ordinal_mi_data <- function() {
   })
 }
 
+make_ordinal_mi_group_data <- function() {
+  set.seed(2403)
+  n <- 360
+  cluster <- rep(seq_len(60), each=6)
+  group <- factor(rep(c("Girls", "Boys"), length.out=n),
+                  levels=c("Girls", "Boys"))
+  weight <- round(stats::runif(n, 0.7, 1.5), 4)
+  factor_score <- stats::rnorm(n) + ifelse(group == "Girls", 0.15, -0.15)
+
+  to_ordered <- function(x) {
+    ordered(cut(x, breaks=c(-Inf, -0.7, 0, 0.8, Inf), labels=1:4),
+            levels=1:4)
+  }
+
+  dat <- data.frame(
+    y1=to_ordered(0.85 * factor_score + stats::rnorm(n, sd=0.55)),
+    y2=to_ordered(0.78 * factor_score + stats::rnorm(n, sd=0.62)),
+    y3=to_ordered(0.74 * factor_score + stats::rnorm(n, sd=0.66)),
+    y4=to_ordered(0.70 * factor_score + stats::rnorm(n, sd=0.70)),
+    cluster=cluster,
+    weight=weight,
+    group=group
+  )
+
+  missing_y3 <- sample(seq_len(n), 70)
+  dat$y3[missing_y3] <- NA
+
+  lapply(seq_len(3), function(i) {
+    imp <- dat
+    set.seed(9200 + i)
+    for(g in levels(group)) {
+      missing <- is.na(imp$y3) & imp$group == g
+      observed <- imp$y3[!is.na(imp$y3) & imp$group == g]
+      imp$y3[missing] <- sample(observed, sum(missing), replace=TRUE)
+    }
+    imp$y3 <- ordered(imp$y3, levels=levels(dat$y3))
+    imp
+  })
+}
+
 test_that("ordinal MI survey models pool thresholds and correlations", {
   skip_if_not_installed("mitools")
 
@@ -90,5 +130,116 @@ test_that("ordinal MI survey models pool thresholds and correlations", {
                tolerance=1e-10, check.attributes=FALSE)
   expect_equal(Gamma, expected$Gamma,
                tolerance=1e-10, check.attributes=FALSE)
+  expect_true(is.finite(lavaan::fitMeasures(fit_mi, "chisq.scaled")))
+})
+
+test_that("ordinal MI survey models work for multiple groups", {
+  skip_if_not_installed("mitools")
+
+  items <- paste0("y", 1:4)
+  group_labels <- c("Girls", "Boys")
+  imputed_data <- make_ordinal_mi_group_data()
+  imputation_list <- mitools::imputationList(imputed_data)
+  design <- survey::svydesign(
+    ids=~cluster,
+    weights=~weight,
+    data=imputation_list
+  )
+  rep_design <- survey::as.svrepdesign(
+    design,
+    type="bootstrap",
+    replicates=8
+  )
+
+  fit_naive <- lavaan::cfa(
+    model="f =~ y1 + y2 + y3 + y4",
+    data=imputed_data[[1]],
+    ordered=items,
+    group="group"
+  )
+
+  fit_mi <- suppressWarnings(lavaan.survey.ordinal(
+    lavaan.fit=fit_naive,
+    survey.design=rep_design,
+    estimator="WLSMV"
+  ))
+
+  per_imputation <- lapply(
+    rep_design$designs,
+    lavaan.survey:::get.ordinal.survey.stats,
+    ov.names=items,
+    ordered=items,
+    ngroups=2,
+    group.var="group",
+    group.labels=group_labels
+  )
+  expected <- lavaan.survey:::pool.ordinal.mi.stats(
+    per_imputation,
+    ngroups=2,
+    group.labels=group_labels
+  )
+
+  sampstat <- lavaan::lavInspect(fit_mi, "sampstat")
+  Gamma <- lavaan::lavTech(fit_mi, "gamma")
+
+  expect_true(lavaan::lavInspect(fit_mi, "converged"))
+  expect_equal(lavaan::lavInspect(fit_mi, "ngroups"), 2)
+  expect_equal(length(Gamma), 2)
+  expect_equal(lavaan::lavInspect(fit_mi, "nobs"),
+               unname(expected$point.stats$nobs),
+               check.attributes=FALSE)
+
+  for(g in seq_along(group_labels)) {
+    expect_equal(unclass(as.matrix(sampstat[[g]]$cov)),
+                 unclass(as.matrix(expected$point.stats$sample.cov[[g]])),
+                 tolerance=1e-10, check.attributes=FALSE)
+    expect_equal(as.numeric(sampstat[[g]]$th),
+                 as.numeric(expected$point.stats$sample.th[[g]]),
+                 tolerance=1e-10, check.attributes=FALSE)
+    expect_equal(Gamma[[g]], expected$Gamma[[g]],
+                 tolerance=1e-10, check.attributes=FALSE)
+  }
+  expect_true(is.finite(lavaan::fitMeasures(fit_mi, "chisq.scaled")))
+})
+
+test_that("ordinal MI survey models preserve group invariance constraints", {
+  skip_if_not_installed("mitools")
+
+  items <- paste0("y", 1:4)
+  imputed_data <- make_ordinal_mi_group_data()
+  imputation_list <- mitools::imputationList(imputed_data)
+  design <- survey::svydesign(
+    ids=~cluster,
+    weights=~weight,
+    data=imputation_list
+  )
+
+  fit_naive <- lavaan::cfa(
+    model="f =~ y1 + y2 + y3 + y4",
+    data=imputed_data[[1]],
+    ordered=items,
+    group="group",
+    group.equal=c("loadings", "thresholds")
+  )
+
+  fit_mi <- suppressWarnings(lavaan.survey.ordinal(
+    lavaan.fit=fit_naive,
+    survey.design=design,
+    estimator="WLSMV",
+    rep.type="bootstrap",
+    replicates=8
+  ))
+
+  partable <- lavaan::parTable(fit_mi)
+  constraints <- partable[partable$op == "==", ]
+  loadings <- partable[partable$op == "=~" & partable$rhs != "y1", ]
+  thresholds <- partable[partable$op == "|", ]
+
+  expect_true(lavaan::lavInspect(fit_mi, "converged"))
+  expect_equal(lavaan::lavInspect(fit_mi, "ngroups"), 2)
+  expect_equal(length(lavaan::lavTech(fit_mi, "gamma")), 2)
+  expect_gt(nrow(constraints), 0)
+  expect_true(any(loadings$label != ""))
+  expect_true(any(thresholds$label != ""))
   expect_true(is.finite(lavaan::fitMeasures(fit_mi, "chisq.scaled")))
 })

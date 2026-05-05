@@ -40,6 +40,8 @@ endorsed by the original author/maintainer.
   CFA, and ordinal loading/threshold invariance.
 * Added regression coverage for continuous multiple-imputation survey pooling.
 * Added regression coverage for ordinal multiple-imputation survey pooling.
+* Added regression coverage for multiple-group ordinal multiple-imputation
+  models, including loading and threshold invariance constraints.
 * Documented the continuous multiple-imputation survey workflow in the README.
 * Added a continuous multiple-imputation Mplus Demo validation workflow using
   the same ten imputed datasets in Mplus and `lavaan.survey()`.

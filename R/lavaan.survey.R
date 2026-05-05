@@ -423,13 +423,16 @@ pool.ordinal.mi.point.stats.by.group <- function(point.stats.list, group.labels)
   }
   attr(sample.th, "th.idx") <- attr(first$sample.th, "th.idx")
 
+  nobs <- vapply(seq_len(ngroups), function(g) {
+    stats::median(vapply(point.stats.list, function(x) x$nobs[[g]], numeric(1)))
+  }, numeric(1))
+  names(nobs) <- group.labels
+
   list(sample.cov=sample.cov,
        sample.mean=sample.mean,
        sample.th=sample.th,
        wls.obs=wls.obs,
-       nobs=vapply(seq_len(ngroups), function(g) {
-         stats::median(vapply(point.stats.list, function(x) x$nobs[[g]], numeric(1)))
-       }, numeric(1)))
+       nobs=nobs)
 }
 
 pool.ordinal.mi.gamma <- function(gamma.list, wls.list, nobs.list, sample.nobs) {

@@ -130,7 +130,9 @@ estimated from the replicate weights.
 a `mitools::imputationList`. Fit the naive ordinal `lavaan` model on one
 completed dataset, then pass the imputed survey design to
 `lavaan.survey.ordinal()`. Thresholds, polychoric correlations, and their
-design-based covariance matrix are pooled across imputations.
+design-based covariance matrix are pooled across imputations. The same workflow
+can be used with multiple-group ordinal models, including loading and threshold
+invariance constraints.
 
 ```r
 library(mitools)
