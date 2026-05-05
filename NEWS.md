@@ -14,9 +14,10 @@ endorsed by the original author/maintainer.
   the ordinal survey implementation.
 * Adds `lavaan.survey.ordinal()` as the direct lower-level function for ordinal
   and mixed ordinal/continuous WLSMV/DWLS survey SEM.
-* Reports the resolved survey mode, multiple-imputation pooling strategy, and
-  point-WLS strategy when ordinal or mixed models are fitted, and stores the
-  same metadata in `attr(fit, "lavaan.survey.info")`.
+* Reports the resolved survey mode, multiple-imputation pooling strategy,
+  point-WLS strategy, and, where relevant, within-imputation covariance
+  strategy when ordinal or mixed models are fitted. The same metadata are
+  stored in `attr(fit, "lavaan.survey.info")`.
 
 ## Supported workflows
 
@@ -38,33 +39,34 @@ endorsed by the original author/maintainer.
   experimental proof-of-concept path for single-group, multiple-group, and
   multiple-imputation workflows. This path delegates WLS sample-statistic
   ordering to `lavaan`.
-* For mixed ordinal/continuous multiple-imputation models, the `auto` defaults
-  use the Mplus-nearer parameter-pooling strategy:
-  `point.wls = "lavaan"` and `mi.pooling = "parameters"`. The
-  within-imputation covariance matrix is now explicit via
-  `within.variance = c("auto", "replicate", "lavaan.robust", "naive")`;
-  `auto` uses replicate-weight refits when available, while `naive` preserves
-  the previous lavaan weighted-vcov diagnostic. The original
-  pooled-sample-statistic strategy remains available for sensitivity checks via
-  `point.wls = "design"` and `mi.pooling = "sample.statistics"`.
+* Mixed ordinal/continuous multiple-imputation models use Rubin
+  parameter-pooling by default: `point.wls = "lavaan"` and
+  `mi.pooling = "parameters"` under the `auto` settings. Their
+  within-imputation covariance strategy is controlled by
+  `within.variance = c("auto", "replicate", "lavaan.robust", "naive")`.
+  The `auto` setting uses replicate-weight refits when available; `naive`
+  keeps a faster lavaan weighted-vcov diagnostic that is useful for
+  Mplus-nearer comparisons. The pooled-sample-statistic strategy remains
+  available for sensitivity checks via `point.wls = "design"` and
+  `mi.pooling = "sample.statistics"`.
 
 ## Validation, tests, and documentation
 
-* Adds regression tests for continuous robustness fixes, continuous
+* Regression tests cover continuous robustness fixes, continuous
   multiple-imputation pooling, ordinal survey CFA, ordinal multiple-group CFA,
   ordinal measurement invariance, ordinal multiple imputation, and mixed
   ordinal/continuous survey workflows.
-* Adds regression coverage for the two mixed-indicator algorithms:
+* Regression tests cover the two mixed-indicator algorithms:
   design-based pooled sample statistics and Mplus-nearer Rubin parameter
   pooling with lavaan WLS point-estimation weights.
-* Adds regression coverage for replicate-based and naive within-imputation
+* Regression tests cover replicate-based and naive within-imputation
   covariance estimation in mixed ordinal/continuous parameter pooling.
-* Adds Mplus Demo validation workflows for continuous MI, ordinal MI, ordinal
-  multiple-group invariance, ordinal multiple-group MI, and mixed
+* Mplus Demo validation workflows are included for continuous MI, ordinal MI,
+  ordinal multiple-group invariance, ordinal multiple-group MI, and mixed
   ordinal/continuous multiple-group MI.
-* Adds a vignette for ordinal survey SEM with multiple imputation and
+* A vignette documents ordinal survey SEM with multiple imputation and
   multiple-group models.
-* Updates the README and manual pages for the modernization fork, ordinal
+* The README and manual pages document the modernization fork, ordinal
   support, replicate designs, multiple-imputation survey designs, mixed
   workflows, and current robust lavaan test names.
 
