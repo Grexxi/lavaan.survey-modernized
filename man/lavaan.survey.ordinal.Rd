@@ -41,13 +41,15 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
   }
 }
 \details{
-  This function is an initial ordinal implementation. It currently supports
-  single-group and multiple-group models where all observed model variables are
-  ordered. If \code{survey.design} is a \code{svyimputationList}, thresholds,
-  polychoric correlations, and their design-based covariance matrix are pooled
-  across imputations. This also applies to multiple-group ordinal models,
-  including loading and threshold invariance constraints. Mixed
-  continuous/ordinal observed-variable sets are not yet implemented.
+  This function is an initial ordinal implementation. It supports single-group
+  and multiple-group models where all observed model variables are ordered. If
+  \code{survey.design} is a \code{svyimputationList}, thresholds, polychoric
+  correlations, and their design-based covariance matrix are pooled across
+  imputations. This also applies to multiple-group ordinal models, including
+  loading and threshold invariance constraints. Mixed continuous/ordinal
+  observed-variable sets have an experimental single-group proof-of-concept
+  path; mixed multiple-group, multiple-imputation, and Mplus validation
+  workflows still need follow-up testing.
 }
 \value{
   An object of class \code{\linkS4class{lavaan}}.

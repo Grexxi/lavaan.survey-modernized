@@ -214,7 +214,8 @@ The ordinal variables used in the model should have stable categories in the
 full sample and within each group. Very sparse categories can make thresholds
 and polychoric correlations unstable, especially in multiple-group models.
 
-At this stage, the ordinal extension is designed for CFA/SEM models where all
-observed model indicators are ordered categorical variables. Mixed continuous
-and ordinal observed variables should be treated as experimental until more
-tests are added.
+At this stage, the ordinal extension is best validated for CFA/SEM models where
+all observed model indicators are ordered categorical variables. Mixed
+continuous and ordinal observed variables have an experimental single-group path
+and should be treated as provisional until more tests and external validation
+are added.

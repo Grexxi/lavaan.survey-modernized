@@ -16,6 +16,9 @@ endorsed by the original author/maintainer.
   and thresholds.
 * Added initial multiple-imputation support for `lavaan.survey.ordinal()` when
   the survey design is a `svyimputationList`.
+* Added an experimental proof-of-concept path for mixed ordinal/continuous
+  observed variables in `lavaan.survey.ordinal()` single-group models. The
+  mixed path delegates WLS sample-statistic ordering to lavaan.
 
 ## Compatibility and bug fixes
 
@@ -67,7 +70,6 @@ endorsed by the original author/maintainer.
 
 ## Current limitations
 
-* `lavaan.survey.ordinal()` currently requires all observed model variables to
-  be ordered.
-* Mixed continuous/ordinal observed-variable sets are not yet implemented for
-  the ordinal workflow.
+* Mixed continuous/ordinal observed-variable sets are still experimental.
+  Multiple-group, multiple-imputation, and Mplus validation workflows for mixed
+  indicators remain future work.

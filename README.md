@@ -210,10 +210,11 @@ information, multiple imputation, multiple-group CFA, and equality constraints.
 
 ## Current limitations
 
-`lavaan.survey.ordinal()` is an initial implementation. It currently supports
+`lavaan.survey.ordinal()` is an initial implementation. It supports
 single-group and multiple-group models where all observed model variables are
-ordered. Mixed continuous/ordinal observed-variable sets are not yet implemented
-for the ordinal workflow.
+ordered. Mixed continuous/ordinal observed-variable sets have an experimental
+single-group proof-of-concept path; multiple-group, multiple-imputation, and
+Mplus validation workflows for mixed indicators still need follow-up testing.
 
 ## Package checks
 
