@@ -133,7 +133,9 @@ lavaan.survey(lavaan.fit, survey.design,
 	multiple-imputation models using parameter pooling, the return value is
 	an object of class \code{lavaan.survey.mi}; its summary method reports
 	Barnard-Rubin degrees of freedom for Rubin-pooled parameter tests when
-	complete-data survey design degrees of freedom are available.}
+	complete-data survey design degrees of freedom are available. The returned
+	data frame contains columns \code{Estimate}, \code{Std.Err},
+	\code{t.value}, \code{df}, and \code{P.value}.}
 \references{
 Asparouhov T (2005). Sampling Weights in Latent Variable Modeling. Structural 
   Equation Modeling, 12(3), 411-434.
