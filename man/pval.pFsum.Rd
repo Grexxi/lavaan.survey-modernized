@@ -17,10 +17,10 @@ Uses the \code{\link{pFsum}} function from the \pkg{survey} package to obtain a 
 	this is "MLM".
 }
   \item{survey.design}{
-	An  \code{\link{svydesign}} object resulting from a call to 
-	\code{svydesign} in the \pkg{survey} package. This allows for incorporation of
-	clustering, stratification, unequal probability weights, finite
-	population correction, and multiple imputation. 
+	An  \code{\link{svydesign}} or \code{\link{svrepdesign}} object from
+	the \pkg{survey} package. The design degrees of freedom,
+	\code{\link{degf}}(survey.design), are used as the denominator degrees
+	of freedom of the F reference distribution.
 	See the survey documentation for more information.
 }
    \item{method}{
@@ -30,10 +30,20 @@ Uses the \code{\link{pFsum}} function from the \pkg{survey} package to obtain a 
 \details{
 With a small number of primary sampling units (design degrees of freedom), the asymptotic chi-square approximation to the distribution of the test statistic may not be entirely accurate. In this case instead of a chi-square, an F-reference distribution using the design degrees of freedom may be used. 
 
-When \code{\link{degf}} is infinite, the p-value output by this function be equal the Satterthwaite ("MLMVS") p-value (see \code{\link{lavaan}} "test" options).
+The \code{lavaan.fit} object must include a robust \pkg{lavaan} test that
+provides U.Gamma information, such as MLM, MLMV, or MLMVS. Current
+\pkg{lavaan} versions record these tests as \code{"satorra.bentler"},
+\code{"scaled.shifted"}, or \code{"mean.var.adjusted"} in
+\code{lavInspect(fit, "options")$test}.
+
+When \code{\link{degf}} is infinite, the p-value output by this function is
+equal to the Satterthwaite-type ("MLMVS") p-value (see \code{\link{lavaan}}
+"test" options).
 
 The eigenvalues of the U.Gamma matrix, which is used by \pkg{lavaan} to calculate Satorra-Bentler scaling corrections, will be the coefficients in the 
  mixture of chi-squares distribution (Skinner, Holt & Smith, pp. 86-87).
+For multiple-group fits, group-specific U.Gamma matrices are combined
+block-diagonally before calculating these eigenvalues.
 
 An anonymous reviewer for the Journal of Statistical Software suggested that 
   "in surveys with small numbers of primary sampling units this sort of 
@@ -65,6 +75,7 @@ Oberski, D.L. (2014). lavaan.survey: An R Package for Complex Survey Analysis
 	\code{\link{pFsum}}
 	\code{\link{degf}}
 	\code{\link{svydesign}}
+	\code{\link{svrepdesign}}
 	\code{\link{lavaan}}
 }
 \examples{

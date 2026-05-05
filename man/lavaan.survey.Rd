@@ -41,10 +41,11 @@ lavaan.survey(lavaan.fit, survey.design,
 	this is "MLM".
 }
   \item{survey.design}{
-	An  \code{\link{svydesign}} object resulting from a call to 
-	\code{svydesign} in the \pkg{survey} package. This allows for incorporation of
-	clustering, stratification, unequal probability weights, finite
-	population correction, and multiple imputation. 
+	An  \code{\link{svydesign}}, \code{\link{svrepdesign}}, or
+	\code{svyimputationList} object from the \pkg{survey} package. This
+	allows for incorporation of clustering, stratification, unequal
+	probability weights, finite population correction, replicate weights,
+	and multiple imputation.
 	See the survey documentation for more information.
 }
    \item{estimator}{
@@ -64,7 +65,8 @@ lavaan.survey(lavaan.fit, survey.design,
 }
 \details{
 	The user specifies a complex sampling design with the \pkg{survey} package's
-	\code{\link{svydesign}} function, and a structural equation model with
+	\code{\link{svydesign}} or \code{\link{svrepdesign}} function, and a
+	structural equation model with
 	\code{\link{lavaan}}.
 	
 	 \code{lavaan.survey} follows these steps:
@@ -165,14 +167,15 @@ Yuan K, Bentler P (1998). Normal Theory Based Test Statistics in Structural Equa
   In such cases \code{lavaan.survey} checks explicitly whether the covariance matrix
   of the parameter estimates is still positive definite and produces a warning otherwise. 
 
-    3) Currently only structural equation models for continuous variables are 
-    implemented.
+    3) This function handles models for continuous observed variables. For
+    ordinal observed variables, use \code{\link{lavaan.survey.ordinal}}.
 }
 
 %% ~Make other sections like Warning with \section{Warning }{....} ~
 
 \seealso{
   \code{\link{pval.pFsum}}
+  \code{\link{lavaan.survey.ordinal}}
 
   \code{\link{cardinale}}
   \code{\link{ess.dk}}
@@ -181,6 +184,7 @@ Yuan K, Bentler P (1998). Normal Theory Based Test Statistics in Structural Equa
   \code{\link{pisa.be.2003}}
 
   \code{\link{svydesign}}
+  \code{\link{svrepdesign}}
   \code{\link{lavaan}}
 }
 \examples{

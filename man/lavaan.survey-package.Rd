@@ -11,20 +11,24 @@
 	
 	The structural equation model parameter estimates and standard errors
 	are design-based. See Satorra and Muth\'en (1995) for details on the 
-	procedure.
+	procedure. This modernization fork also provides initial support for
+	ordinal survey SEM through \code{\link{lavaan.survey.ordinal}}.
 }
 \details{
 \tabular{ll}{
 Package: \tab lavaan.survey\cr
 Type: \tab Package\cr
-Version: \tab 1.0\cr
-Date: \tab 2013-11-06\cr
+Version: \tab 1.2.0\cr
+Date: \tab 2026-05-03\cr
 License: \tab GPL(>=2)\cr
 }
 
 }
 \author{
-    Author/maintainer: Daniel Oberski <daniel.oberski@gmail.com>
+    Original author: Daniel Oberski <daniel.oberski@gmail.com>
+
+    Maintainer of this unofficial modernization fork:
+    Gregor Waller <gregor.waller@zhaw.ch>
 }
 \references{
   Bollen, K, Tueller, S, Oberski, DL (2013). Issues in the Structural Equation 
@@ -51,6 +55,7 @@ License: \tab GPL(>=2)\cr
 \keyword{ package }
 \seealso{
     \code{\link{lavaan.survey}}
+    \code{\link{lavaan.survey.ordinal}}
     
   \code{\link{pval.pFsum}}
 
@@ -61,6 +66,7 @@ License: \tab GPL(>=2)\cr
   \code{\link{pisa.be.2003}}
 
   \code{\link{svydesign}}
+  \code{\link{svrepdesign}}
 
   \code{\link{lavaan}}
     \code{\link{cfa}}
