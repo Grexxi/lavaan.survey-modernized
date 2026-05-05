@@ -4,7 +4,29 @@
 lavaan.survey <- 
   function(lavaan.fit, survey.design, 
            estimator=c("MLM", "MLMV", "MLMVS", "WLS", "DWLS", "ML"),
-           estimator.gamma=c("default","Yuan-Bentler")) {
+           estimator.gamma=c("default","Yuan-Bentler"),
+           ordered=NULL, ...) {
+
+  estimator.supplied <- !missing(estimator)
+  ordered.from.fit <- lavNames(lavaan.fit, type="ov.ord", group=1)
+  ordinal.requested <- isTRUE(ordered) || is.character(ordered) ||
+    (is.null(ordered) && length(ordered.from.fit) > 0L)
+  if(identical(ordered, FALSE)) ordinal.requested <- FALSE
+
+  if(ordinal.requested) {
+    if(isTRUE(ordered)) ordered <- ordered.from.fit
+    if(estimator.supplied) {
+      estimator <- match.arg(estimator, choices=c("WLSMV", "DWLS"))
+    }
+    else {
+      estimator <- "WLSMV"
+    }
+
+    return(lavaan.survey.ordinal(lavaan.fit=lavaan.fit,
+                                 survey.design=survey.design,
+                                 ordered=ordered,
+                                 estimator=estimator, ...))
+  }
   
   # Not all estimators in lavaan make sense to use here, therefore matching args
   estimator <- match.arg(estimator) 

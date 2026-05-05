@@ -560,6 +560,56 @@ test_that("mixed MI defaults to the Mplus-nearer parameter-pooling path", {
   expect_true(all(is.finite(coef(fit_default))))
 })
 
+test_that("lavaan.survey dispatches mixed models to the ordinal wrapper", {
+  data <- make_mixed_indicator_data()
+  rep_design <- make_mixed_indicator_rep_design(data, replicates=6)
+  fit <- fit_mixed_indicator_model(data, meanstructure=FALSE)
+
+  fit_wrapper <- expect_message(suppressWarnings(lavaan.survey(
+    lavaan.fit=fit,
+    survey.design=rep_design,
+    point.wls="design",
+    mi.pooling="sample.statistics"
+  )), "lavaan\\.survey\\.ordinal mode: mixed ordinal/continuous")
+  survey_info <- attr(fit_wrapper, "lavaan.survey.info")
+
+  expect_s4_class(fit_wrapper, "lavaan")
+  expect_equal(survey_info$mode, "mixed ordinal/continuous")
+  expect_equal(survey_info$mi.pooling, "none")
+  expect_equal(survey_info$point.wls, "design")
+  expect_equal(lavaan::lavInspect(fit_wrapper, "options")$estimator, "DWLS")
+})
+
+test_that("lavaan.survey dispatches mixed MI models to parameter pooling by default", {
+  skip_if_not_installed("mitools")
+
+  imputed_data <- make_mixed_indicator_mi_data()
+  imputation_list <- mitools::imputationList(imputed_data)
+  design <- survey::svydesign(
+    ids=~cluster,
+    strata=~stratum,
+    weights=~weight,
+    data=imputation_list,
+    nest=TRUE
+  )
+  rep_design <- survey::as.svrepdesign(
+    design,
+    type="bootstrap",
+    replicates=4
+  )
+  fit <- fit_mixed_indicator_model(imputed_data[[1]])
+
+  fit_wrapper <- expect_message(suppressWarnings(lavaan.survey(
+    lavaan.fit=fit,
+    survey.design=rep_design
+  )), "MI pooling: parameters")
+
+  expect_s3_class(fit_wrapper, "lavaan.survey.mi")
+  expect_equal(fit_wrapper$survey.info$mode, "mixed ordinal/continuous")
+  expect_equal(fit_wrapper$survey.info$mi.pooling, "parameters")
+  expect_equal(fit_wrapper$survey.info$point.wls, "lavaan")
+})
+
 test_that("mixed multiple-group MI models support Rubin parameter pooling", {
   skip_if_not_installed("mitools")
 

@@ -11,7 +11,9 @@ package.
 
 This 1.2.0 modernization snapshot updates the original package for current
 `lavaan` versions and adds initial support for ordinal survey SEM through
-`lavaan.survey.ordinal()`.
+`lavaan.survey.ordinal()`. The main `lavaan.survey()` wrapper now recognizes
+ordinal `lavaan` fits and dispatches to the ordinal or mixed
+ordinal/continuous path automatically.
 
 ## Installation
 
@@ -85,7 +87,11 @@ clusters, and strata.
 ## Ordinal SEM with complex survey designs
 
 For ordinal indicators, fit the naive ordinal model first with `lavaan`, then
-pass the fitted object and the survey design to `lavaan.survey.ordinal()`.
+pass the fitted object and the survey design to `lavaan.survey()`. If the
+`lavaan` fit contains ordered variables, `lavaan.survey()` automatically calls
+the ordinal survey implementation. You can still call
+`lavaan.survey.ordinal()` directly when you want the explicit lower-level
+function.
 
 ```r
 items <- paste0("v", 1:10)
@@ -110,7 +116,7 @@ des <- svydesign(
   nest = TRUE
 )
 
-fit_svy <- lavaan.survey.ordinal(
+fit_svy <- lavaan.survey(
   lavaan.fit = fit_naive,
   survey.design = des,
   estimator = "WLSMV"
@@ -129,10 +135,10 @@ estimated from the replicate weights.
 `lavaan.survey.ordinal()` also accepts a survey design whose `data` argument is
 a `mitools::imputationList`. Fit the naive ordinal `lavaan` model on one
 completed dataset, then pass the imputed survey design to
-`lavaan.survey.ordinal()`. Thresholds, polychoric correlations, and their
-design-based covariance matrix are pooled across imputations. The same workflow
-can be used with multiple-group ordinal models, including loading and threshold
-invariance constraints.
+`lavaan.survey()` or `lavaan.survey.ordinal()`. Thresholds, polychoric
+correlations, and their design-based covariance matrix are pooled across
+imputations. The same workflow can be used with multiple-group ordinal models,
+including loading and threshold invariance constraints.
 
 ```r
 library(mitools)
@@ -155,7 +161,7 @@ fit_imp <- cfa(
   estimator = "WLSMV"
 )
 
-fit_svy_imp <- lavaan.survey.ordinal(fit_imp, des_imp)
+fit_svy_imp <- lavaan.survey(fit_imp, des_imp)
 summary(fit_svy_imp, fit.measures = TRUE, standardized = TRUE)
 ```
 
@@ -173,7 +179,7 @@ fit_group <- cfa(
   estimator = "WLSMV"
 )
 
-fit_group_svy <- lavaan.survey.ordinal(fit_group, des)
+fit_group_svy <- lavaan.survey(fit_group, des)
 summary(fit_group_svy, fit.measures = TRUE, standardized = TRUE)
 ```
 
@@ -192,7 +198,7 @@ fit_scalar <- cfa(
   estimator = "WLSMV"
 )
 
-fit_scalar_svy <- lavaan.survey.ordinal(fit_scalar, des)
+fit_scalar_svy <- lavaan.survey(fit_scalar, des)
 summary(fit_scalar_svy, fit.measures = TRUE, standardized = TRUE)
 ```
 

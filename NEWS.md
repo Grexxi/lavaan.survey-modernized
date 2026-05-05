@@ -29,6 +29,10 @@ endorsed by the original author/maintainer.
   The `auto` defaults use this Mplus-nearer path for mixed
   ordinal/continuous MI models, while retaining the pooled-statistic default
   for all-ordinal MI models.
+* `lavaan.survey()` now dispatches lavaan fits with ordered observed variables
+  to `lavaan.survey.ordinal()`, so continuous, ordinal, and mixed
+  ordinal/continuous models can use the same top-level wrapper. The direct
+  `lavaan.survey.ordinal()` function remains available for explicit calls.
 * `lavaan.survey.ordinal()` now reports the resolved mode, MI pooling strategy,
   and point-WLS strategy when it runs, and stores the same metadata in
   `attr(fit, "lavaan.survey.info")`.
