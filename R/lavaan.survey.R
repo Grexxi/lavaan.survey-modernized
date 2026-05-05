@@ -189,13 +189,13 @@ lavaan.survey <-
     error=function(e) e
   )
   if(inherits(new.fit, "error")) {
-    if(grepl("object .* not found", conditionMessage(new.fit))) {
-      new.call$model <- lavaan::parTable(lavaan.fit)
-      new.fit <- eval(as.call(new.call))
-    }
-    else {
-      stop(new.fit)
-    }
+    first.error <- new.fit
+    new.call$model <- lavaan::parTable(lavaan.fit)
+    new.fit <- tryCatch(
+      eval(as.call(new.call), envir=parent.frame()),
+      error=function(e) e
+    )
+    if(inherits(new.fit, "error")) stop(first.error)
   }
   
   if(estimator %in% c("WLS", "DWLS")) return(new.fit) # We are done for WLS

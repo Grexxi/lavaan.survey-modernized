@@ -75,7 +75,7 @@ endorsed by the original author/maintainer.
   convention.
 * Makes continuous refits work from function-local model objects and fall back
   to the fitted model's parameter table when the original model object is no
-  longer available.
+  longer available. The fallback no longer depends on English R error messages.
 * Makes ordinal refits independent of local model object names by refitting
   from the fitted model's parameter table.
 * Propagates `meanstructure` consistently from `lavaan.survey.ordinal()` into
