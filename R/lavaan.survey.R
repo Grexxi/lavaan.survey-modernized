@@ -13,7 +13,7 @@ lavaan.survey <-
   meanstructure <- isTRUE(lavInspect(lavaan.fit, "options")$meanstructure)
   
   # Names of the observed variables (same for each group)
-  ov.names <- lavaanNames(lavaan.fit, type="ov", group=1)
+  ov.names <- lavNames(lavaan.fit, type="ov", group=1)
   
   # The MP-inverse duplication matrix is handy for removing redundancy
   Dplus <- lavaan::lav_matrix_duplication_ginv( length(ov.names) )
@@ -222,8 +222,8 @@ lavaan.survey.ordinal <-
     group.var <- lavInspect(lavaan.fit, "group")
     group.labels <- lavInspect(lavaan.fit, "group.label")
   }
-  ov.names <- lavaan::lavNames(lavaan.fit, type="ov", group=1)
-  if(is.null(ordered)) ordered <- lavaan::lavNames(lavaan.fit, type="ov.ord", group=1)
+  ov.names <- lavNames(lavaan.fit, type="ov", group=1)
+  if(is.null(ordered)) ordered <- lavNames(lavaan.fit, type="ov.ord", group=1)
   if(length(ordered) == 0) {
     stop("No ordered variables were found. Please fit lavaan with ordered= or pass ordered=.")
   }
@@ -661,15 +661,20 @@ get.ugamma.matrix <- function(lavaan.fit) {
 
 as.ugamma.matrix <- function(UGamma) {
   if(is.list(UGamma)) {
-    if(!all(vapply(UGamma, is.matrix, logical(1)))) {
-      stop("Could not extract U.Gamma as a matrix or list of matrices.")
+    if(length(UGamma) == 0L ||
+       !all(vapply(UGamma, is.square.matrix, logical(1)))) {
+      stop("Could not extract U.Gamma as a square matrix or list of square matrices.")
     }
     UGamma <- lavaan::lav_matrix_bdiag(UGamma)
   }
 
-  if(!is.matrix(UGamma)) {
-    stop("Could not extract U.Gamma as a matrix.")
+  if(!is.square.matrix(UGamma)) {
+    stop("Could not extract U.Gamma as a square matrix.")
   }
 
   UGamma
+}
+
+is.square.matrix <- function(x) {
+  is.matrix(x) && length(dim(x)) == 2L && nrow(x) == ncol(x)
 }
