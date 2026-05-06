@@ -23,12 +23,13 @@ Description: Fit structural equation models (SEM) including factor analysis,
     an official CRAN release and has not yet been reviewed or endorsed by the
     original author.
 Depends: R(>= 2.14.0), lavaan(>= 0.5-20), survey(>= 3.30-3)
-Imports: MASS
+Imports: MASS, methods
 License: GPL (>= 2)
 URL: https://github.com/Grexxi/lavaan.survey-modernized, http://daob.nl/
 BugReports: https://github.com/Grexxi/lavaan.survey-modernized/issues
 Suggests: testthat, mice, mitools,
     knitr,
     rmarkdown
+Enhances: semPlot
 VignetteBuilder: knitr
 NeedsCompilation: no

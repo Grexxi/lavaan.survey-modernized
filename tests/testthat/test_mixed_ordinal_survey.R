@@ -578,14 +578,26 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
   )
   fit <- fit_mixed_indicator_model(imputed_data[[1]])
 
-  fit_pooled <- suppressWarnings(lavaan.survey.ordinal(
-    lavaan.fit=fit,
-    survey.design=rep_design,
-    estimator="WLSMV",
-    point.wls="lavaan",
-    mi.pooling="parameters",
-    within.variance="replicate"
-  ))
+  progress_messages <- character()
+  fit_pooled <- withCallingHandlers(
+    suppressWarnings(lavaan.survey.ordinal(
+      lavaan.fit=fit,
+      survey.design=rep_design,
+      estimator="WLSMV",
+      point.wls="lavaan",
+      mi.pooling="parameters",
+      within.variance="replicate",
+      standardized.se="replicate",
+      verbose=TRUE
+    )),
+    message=function(m) {
+      progress_messages <<- c(progress_messages, conditionMessage(m))
+      invokeRestart("muffleMessage")
+    }
+  )
+  expect_true(any(grepl("Replicate fits for imputation 1/3: 1/4",
+                        progress_messages,
+                        fixed=TRUE)))
   per_imputation <- lapply(rep_design$designs, function(design_i) {
     suppressWarnings(lavaan.survey:::fit.ordinal.weighted.lavaan(
       design=design_i,
@@ -598,11 +610,15 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
     lavaan.survey:::estimate.replicate.parameter.vcov,
     design=rep_design$designs,
     point.fit=per_imputation,
-    MoreArgs=list(lavaan.fit=fit, ordered=c("y1", "y2"), estimator="WLSMV")
+    MoreArgs=list(lavaan.fit=fit, ordered=c("y1", "y2"), estimator="WLSMV",
+                  standardized.types=c("std.lv", "std.all", "std.nox"))
   )
+  replicate.standardized.vcov <- lapply(replicate.vcov,
+                                        attr, "standardized.vcov")
   expected <- lavaan.survey:::pool.lavaan.mi.parameters(
     per_imputation,
-    vcov.list=replicate.vcov
+    vcov.list=replicate.vcov,
+    standardized.vcov.list=replicate.standardized.vcov
   )
   expect_error(
     lavaan.survey:::pool.lavaan.mi.parameters(
@@ -615,17 +631,31 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
   expect_s3_class(fit_pooled, "lavaan.survey.mi")
   survey_info <- attr(fit_pooled, "lavaan.survey.info")
   expect_equal(survey_info$within.variance, "replicate")
+  expect_equal(survey_info$standardized.se, "replicate")
   expect_equal(fit_pooled$df.complete,
                min(vapply(rep_design$designs, survey::degf, numeric(1))))
   expect_equal(coef(fit_pooled), coef(expected), tolerance=1e-10)
   expect_equal(vcov(fit_pooled), vcov(expected), tolerance=1e-10,
                check.attributes=FALSE)
   expect_true(all(diag(fit_pooled$vcov.within) >= 0))
+  expect_equal(fit_pooled$standardized.vcov.within$std.all,
+               expected$standardized.vcov.within$std.all,
+               tolerance=1e-10,
+               check.attributes=FALSE)
 
   summary_table <- capture.output(summary_out <- summary(fit_pooled))
   expect_true(length(summary_table) > 0)
+  expect_true(any(grepl("lavaan.survey MI Summary", summary_table,
+                        fixed=TRUE)))
+  expect_true(any(grepl("Pooled Fit Measures", summary_table,
+                        fixed=TRUE)))
+  expect_true(any(grepl("Latent Variables", summary_table,
+                        fixed=TRUE)))
+  expect_true(any(grepl("P(>|t|)", summary_table,
+                        fixed=TRUE)))
   expect_true(all(c("Estimate", "Std.Err", "t.value", "df", "P.value") %in%
                     names(summary_out)))
+  expect_true(all(c("lhs", "op", "rhs") %in% names(summary_out)))
   expect_false("z.value" %in% names(summary_out))
   expected_df <- lavaan.survey:::barnard.rubin.df(fit_pooled)
   expected_p <- 2 * stats::pt(abs(summary_out$t.value),
@@ -637,6 +667,96 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
   expect_equal(summary_out$df, expected_df, tolerance=1e-10,
                check.attributes=FALSE)
   expect_equal(summary_out$P.value, expected_p, tolerance=1e-10)
+
+  pe <- parameterEstimates(fit_pooled, remove.nonfree=TRUE)
+  expect_true(all(c("lhs", "op", "rhs", "est", "se", "t", "df",
+                    "pvalue") %in% names(pe)))
+  expect_equal(pe$est, as.numeric(coef(fit_pooled)), tolerance=1e-10,
+               check.attributes=FALSE)
+  expect_equal(pe$df, expected_df, tolerance=1e-10,
+               check.attributes=FALSE)
+  expect_equal(pe$pvalue, expected_p, tolerance=1e-10)
+
+  pe_std <- parameterEstimates(fit_pooled, standardized=TRUE,
+                               remove.nonfree=TRUE)
+  expect_true(all(c("std.lv", "std.all", "std.nox") %in% names(pe_std)))
+  expect_equal(pe_std$est, pe$est, tolerance=1e-10,
+               check.attributes=FALSE)
+
+  std <- standardizedSolution(fit_pooled, se=FALSE)
+  per_imputation_std <- lapply(per_imputation, lavaan::standardizedSolution,
+                               se=FALSE)
+  expected_std <- colMeans(do.call(rbind, lapply(per_imputation_std,
+                                                 `[[`, "est.std")))
+  expect_equal(std$est.std, as.numeric(expected_std), tolerance=1e-10,
+               check.attributes=FALSE)
+
+  std_with_se <- standardizedSolution(fit_pooled)
+  expect_true(all(c("est.std", "se", "t", "df", "pvalue", "ci.lower",
+                    "ci.upper") %in% names(std_with_se)))
+  expect_true(all(is.finite(std_with_se$est.std)))
+
+  std_replicate <- standardizedSolution(fit_pooled,
+                                        standardized.se="replicate")
+  expected_within <- fit_pooled$standardized.vcov.within$std.all
+  expected_between <- stats::cov(do.call(rbind, lapply(per_imputation_std,
+                                                       `[[`, "est.std")))
+  dimnames(expected_between) <- dimnames(expected_within)
+  expected_vcov <- expected_within +
+    ((fit_pooled$m + 1) / fit_pooled$m) * expected_between
+  expect_equal(std_replicate$se, sqrt(diag(expected_vcov)), tolerance=1e-10,
+               check.attributes=FALSE)
+  expect_equal(attr(std_replicate, "standardized.se"), "replicate")
+
+  summary_std <- capture.output(summary_std_out <- summary(fit_pooled,
+                                                           standardized=TRUE))
+  expect_true(any(grepl("pooled std.all column shown", summary_std,
+                        fixed=TRUE)))
+  expect_true("Std.all" %in% names(summary_std_out))
+  expect_true(any(is.finite(summary_std_out$Std.all)))
+  expect_equal(
+    summary_std_out$Std.all,
+    pe_std$std.all[
+      lavaan.survey:::lavaan.survey.mi.match.parameter.rows(summary_std_out,
+                                                            pe_std)
+    ],
+    tolerance=1e-10,
+    check.attributes=FALSE
+  )
+  mismatched_group <- pe_std
+  mismatched_group$group <- "single"
+  expect_equal(
+    lavaan.survey:::lavaan.survey.mi.match.parameter.rows(summary_std_out,
+                                                          mismatched_group),
+    seq_len(nrow(summary_std_out))
+  )
+
+  fm <- fitMeasures(fit_pooled, c("cfi.scaled", "rmsea.scaled"))
+  expect_equal(fm,
+               fit_pooled$fit.measures[c("cfi.scaled", "rmsea.scaled")],
+               check.attributes=FALSE)
+  fm.df <- fitMeasures(fit_pooled, c("cfi.scaled", "rmsea.scaled"),
+                       output="data.frame")
+  expect_equal(fm.df$measure, c("cfi.scaled", "rmsea.scaled"))
+  expect_equal(fm.df$value, as.numeric(fm), check.attributes=FALSE)
+
+  semplot.slots <- lavaan.survey:::lavaan.survey.mi.semPlotModel.slots(fit_pooled)
+  expect_true(all(c("Pars", "Vars", "Thresholds", "Computed", "ObsCovs",
+                    "ImpCovs", "Original") %in% names(semplot.slots)))
+  expect_true(semplot.slots$Computed)
+  expect_true(all(c("lhs", "edge", "rhs", "est", "std") %in%
+                    names(semplot.slots$Pars)))
+  expect_true(any(semplot.slots$Pars$edge == "->"))
+  expect_true(any(semplot.slots$Pars$edge == "<->"))
+  expect_true(any(semplot.slots$Vars$name == "f"))
+  expect_true(nrow(semplot.slots$Thresholds) > 0L)
+  expect_equal(length(semplot.slots$ObsCovs), 1L)
+  expect_equal(length(semplot.slots$ImpCovs), 1L)
+
+  if(requireNamespace("semPlot", quietly=TRUE)) {
+    semplot.model <- semPlot::semPlotModel(fit_pooled)
+    expect_s4_class(semplot.model, "semPlotModel")
+  }
 })
 
 test_that("mixed MI defaults to the Mplus-nearer parameter-pooling path", {
@@ -674,18 +794,24 @@ test_that("mixed MI defaults to the Mplus-nearer parameter-pooling path", {
   expect_equal(survey_info$mi.pooling, "parameters")
   expect_equal(survey_info$point.wls, "lavaan")
   expect_equal(survey_info$within.variance, "replicate")
+  expect_equal(survey_info$standardized.se, "lavaan")
   printed <- utils::capture.output(print(fit_default))
   expect_true(any(grepl("lavaan.survey.ordinal mode: mixed ordinal/continuous",
                         printed, fixed=TRUE)))
   expect_true(any(grepl("MI pooling: parameters", printed, fixed=TRUE)))
   expect_true(any(grepl("Point WLS: lavaan", printed, fixed=TRUE)))
   expect_true(any(grepl("Within variance: replicate", printed, fixed=TRUE)))
+  expect_true(any(grepl("Standardized SE: lavaan", printed, fixed=TRUE)))
   legacy <- fit_default
   attr(legacy, "lavaan.survey.info") <- NULL
   legacy$survey.info <- survey_info
   legacy_printed <- utils::capture.output(print(legacy))
   expect_true(any(grepl("MI pooling: parameters", legacy_printed, fixed=TRUE)))
   expect_true(all(is.finite(coef(fit_default))))
+  expect_error(
+    standardizedSolution(fit_default, standardized.se="replicate"),
+    "Replicate standardized SEs are not available"
+  )
 })
 
 test_that("lavaan.survey dispatches mixed models to the ordinal wrapper", {

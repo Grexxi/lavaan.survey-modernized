@@ -90,11 +90,22 @@ test_that("continuous MI survey models pool sample statistics with Rubin scaling
 
   fit_naive <- fit_continuous_mi_lavaan_model(imputed_data[[1]])
 
-  fit_mi <- lavaan.survey(
-    lavaan.fit=fit_naive,
-    survey.design=design,
-    estimator="MLM"
+  progress_messages <- character()
+  fit_mi <- withCallingHandlers(
+    lavaan.survey(
+      lavaan.fit=fit_naive,
+      survey.design=design,
+      estimator="MLM",
+      verbose=TRUE
+    ),
+    message=function(m) {
+      progress_messages <<- c(progress_messages, conditionMessage(m))
+      invokeRestart("muffleMessage")
+    }
   )
+  expect_true(any(grepl("Computing sample statistics for imputation 1/5",
+                        progress_messages,
+                        fixed=TRUE)))
 
   expected <- pool_continuous_mi_sample_stats(
     designs=design$designs,

@@ -18,6 +18,28 @@ endorsed by the original author/maintainer.
   point-WLS strategy, and, where relevant, within-imputation covariance
   strategy when ordinal or mixed models are fitted. The same metadata are
   stored in `attr(fit, "lavaan.survey.info")`.
+* Adds optional verbose progress messages for long multiple-imputation runs:
+  continuous models report per-imputation sample-statistic computation, while
+  mixed ordinal/continuous parameter-pooling models also report
+  per-imputation model fits and replicate-weight refits.
+* Improves `summary()` output for Rubin-pooled `lavaan.survey.mi` objects
+  with a compact model header, pooled fit
+  measures, fixed-width aligned columns, and block-formatted parameter tables.
+* Adds extractor support for Rubin-pooled MI fits:
+  `parameterEstimates()` returns pooled estimates with Barnard-Rubin degrees
+  of freedom, and `fitMeasures()` returns pooled fit-measure averages.
+* Adds pooled standardized output for `lavaan.survey.mi` objects:
+  `parameterEstimates(..., standardized = TRUE)` now adds `std.lv`,
+  `std.all`, and `std.nox`, while `standardizedSolution()` returns
+  Rubin-pooled standardized estimates. `summary(..., standardized = TRUE)`
+  now displays pooled `Std.all` values using the same row matching.
+* Adds `standardized.se = c("lavaan", "replicate")` for mixed MI parameter
+  pooling. The default keeps standardized output fast; the replicate option
+  stores replicate-based standardized within-imputation covariance matrices for
+  stricter standardized-solution standard errors.
+* Adds optional `semPlot` compatibility for `lavaan.survey.mi` objects, so
+  `semPlot::semPaths()` can use Rubin-pooled point estimates and pooled
+  `std.all` values when `semPlot` is installed.
 
 ## Supported workflows
 

@@ -14,7 +14,9 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
                       point.wls = c("auto", "lavaan", "design"),
                       mi.pooling = c("auto", "parameters", "sample.statistics"),
                       within.variance = c("auto", "replicate",
-                                          "lavaan.robust", "naive"))
+                                          "lavaan.robust", "naive"),
+                      standardized.se = c("lavaan", "replicate"),
+                      verbose = interactive())
 }
 \arguments{
   \item{lavaan.fit}{
@@ -77,6 +79,23 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
     clustered estimation together with ordered/categorical indicators, so this
     option currently stops with an informative error.
   }
+  \item{standardized.se}{
+    Standard-error method used later by
+    \code{\link{standardizedSolution}} for \code{lavaan.survey.mi} objects.
+    The default \code{"lavaan"} is fast and uses the per-imputation
+    \pkg{lavaan} standardized-solution standard errors as the
+    within-imputation component. The \code{"replicate"} option is available
+    when \code{mi.pooling = "parameters"} and
+    \code{within.variance = "replicate"}; it collects standardized estimates
+    from the replicate-weight fits and stores replicate-based standardized
+    within-imputation covariance matrices.
+  }
+  \item{verbose}{
+    Logical. If \code{TRUE}, prints progress messages while fitting
+    per-imputation models and replicate-weight refits in the
+    \code{mi.pooling = "parameters"} path. The default is
+    \code{\link{interactive}()}.
+  }
 }
 \details{
   This function is an initial ordinal implementation. It supports single-group
@@ -95,7 +114,9 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
   options keep the original design-based pooled-statistic implementation
   available for sensitivity checks. The selected mode, MI pooling strategy,
   point WLS strategy, and within-imputation variance strategy are printed when
-  relevant and stored as \code{attr(fit, "lavaan.survey.info")}.
+  relevant and stored as \code{attr(fit, "lavaan.survey.info")}. With
+  \code{verbose = TRUE}, long mixed-MI runs also print progress such as
+  \code{Replicate fits for imputation 1/5: 3/20}.
 }
 \value{
   An object of class \code{\linkS4class{lavaan}} for
@@ -105,8 +126,10 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
   \code{vcov}, \code{print}, and \code{summary} methods is returned. The
   summary method reports Rubin-pooled standard errors with Barnard-Rubin
   degrees of freedom when complete-data survey design degrees of freedom are
-  available. The returned data frame contains columns \code{Estimate},
-  \code{Std.Err}, \code{t.value}, \code{df}, and \code{P.value}.
+  available. The printed summary is organized by parameter block and includes
+  pooled fit-measure averages when requested. The returned data frame contains
+  columns \code{lhs}, \code{op}, \code{rhs}, \code{Estimate}, \code{Std.Err},
+  \code{t.value}, \code{df}, and \code{P.value}.
 }
 \seealso{
   \code{\link{lavaan.survey}},

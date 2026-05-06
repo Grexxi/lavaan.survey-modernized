@@ -1,4 +1,5 @@
 importFrom("MASS", ginv)
+importFrom("methods", new)
 importFrom("survey",
             svyvar,
             svymean, 
@@ -17,9 +18,13 @@ importFrom("stats",
            cov, 
            median)
 S3method(coef,lavaan.survey.mi)
+S3method(fitMeasures,lavaan.survey.mi)
 S3method(print,lavaan.survey.mi)
+S3method(print,summary.lavaan.survey.mi)
 S3method(summary,lavaan.survey.mi)
 S3method(vcov,lavaan.survey.mi)
 export("lavaan.survey")
 export("lavaan.survey.ordinal")
+export("parameterEstimates")
 export("pval.pFsum")
+export("standardizedSolution")
