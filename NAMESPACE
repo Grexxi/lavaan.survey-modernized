@@ -1,4 +1,5 @@
 importFrom("MASS", ginv)
+importFrom("methods", new)
 importFrom("survey",
             svyvar,
             svymean, 

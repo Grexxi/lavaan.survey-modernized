@@ -36,6 +36,9 @@ endorsed by the original author/maintainer.
   pooling. The default keeps standardized output fast; the replicate option
   stores replicate-based standardized within-imputation covariance matrices for
   stricter standardized-solution standard errors.
+* Adds optional `semPlot` compatibility for `lavaan.survey.mi` objects, so
+  `semPlot::semPaths()` can use Rubin-pooled point estimates and pooled
+  `std.all` values when `semPlot` is installed.
 
 ## Supported workflows
 

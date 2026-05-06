@@ -94,7 +94,10 @@ standardizedSolution(object, ...)
   from either per-imputation \pkg{lavaan} standardized-solution standard
   errors or replicate-based standardized within-imputation covariance
   matrices, plus between-imputation variability. \code{fitMeasures()} returns
-  a named vector by default.
+  a named vector by default. When \pkg{semPlot} is installed,
+  \code{semPlot::semPaths()} can draw \code{lavaan.survey.mi} objects through
+  an automatically registered \code{semPlotModel()} method. The graph uses
+  Rubin-pooled point estimates and pooled \code{std.all} values.
 }
 \details{
   \code{lavaan}'s \code{parameterEstimates()} and

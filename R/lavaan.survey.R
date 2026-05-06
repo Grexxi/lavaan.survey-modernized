@@ -1120,6 +1120,23 @@ pool.lavaan.mi.fit.measures <- function(fits) {
   colMeans(fit.matrix, na.rm=TRUE)
 }
 
+.onLoad <- function(libname, pkgname) {
+  register.semPlotModel.method <- function(...) {
+    if(isNamespaceLoaded("semPlot")) {
+      registerS3method(
+        "semPlotModel",
+        "lavaan.survey.mi",
+        semPlotModel.lavaan.survey.mi,
+        envir=asNamespace("semPlot")
+      )
+    }
+  }
+
+  register.semPlotModel.method()
+  setHook(packageEvent("semPlot", "onLoad"), register.semPlotModel.method,
+          action="append")
+}
+
 coef.lavaan.survey.mi <- function(object, ...) {
   object$coef
 }
@@ -1156,6 +1173,141 @@ fitMeasures.lavaan.survey.mi <- function(object, fit.measures="all",
                       row.names=NULL, check.names=FALSE))
   }
   out
+}
+
+semPlotModel.lavaan.survey.mi <- function(object, ...) {
+  if(!requireNamespace("semPlot", quietly=TRUE)) {
+    stop("The semPlot package is required for semPlotModel() or semPaths() ",
+         "with lavaan.survey.mi objects.", call.=FALSE)
+  }
+
+  slots <- lavaan.survey.mi.semPlotModel.slots(object)
+  new("semPlotModel",
+      Pars=slots$Pars,
+      Vars=slots$Vars,
+      Thresholds=slots$Thresholds,
+      Computed=slots$Computed,
+      ObsCovs=slots$ObsCovs,
+      ImpCovs=slots$ImpCovs,
+      Original=slots$Original)
+}
+
+lavaan.survey.mi.semPlotModel.slots <- function(object) {
+  if(!inherits(object, "lavaan.survey.mi")) {
+    stop("A lavaan.survey.mi object is required.", call.=FALSE)
+  }
+  if(length(object$fits) == 0L) {
+    stop("The lavaan.survey.mi object does not contain fitted lavaan models.",
+         call.=FALSE)
+  }
+
+  ref.fit <- object$fits[[1]]
+  pt <- as.data.frame(lavaan::parTable(ref.fit), stringsAsFactors=FALSE)
+  pars <- parameterEstimates.lavaan.survey.mi(
+    object,
+    se=FALSE,
+    zstat=FALSE,
+    pvalue=FALSE,
+    ci=FALSE,
+    standardized=TRUE,
+    remove.system.eq=FALSE,
+    remove.eq=FALSE,
+    remove.ineq=FALSE,
+    remove.def=FALSE
+  )
+
+  if(!"label" %in% names(pt)) pt$label <- rep("", nrow(pt))
+  if(!"group" %in% names(pt)) pt$group <- ""
+  if(!"free" %in% names(pt)) pt$free <- 0L
+  if(!"est" %in% names(pt)) pt$est <- NA_real_
+
+  pt.key <- lavaan.survey.mi.parameter.key(pt)
+  pars.key <- lavaan.survey.mi.parameter.key(pars)
+  idx <- match(pt.key, pars.key)
+
+  est <- pt$est
+  std <- rep(NA_real_, nrow(pt))
+  has.match <- !is.na(idx)
+  est[has.match] <- pars$est[idx[has.match]]
+  if("std.all" %in% names(pars)) {
+    std[has.match] <- pars$std.all[idx[has.match]]
+  }
+
+  sem.pars <- data.frame(
+    label=pt$label,
+    lhs=ifelse(pt$op %in% c("~", "~1"), pt$rhs, pt$lhs),
+    edge="--",
+    rhs=ifelse(pt$op %in% c("~", "~1"), pt$lhs, pt$rhs),
+    est=est,
+    std=std,
+    group=pt$group,
+    fixed=pt$free == 0L,
+    par=pt$free,
+    stringsAsFactors=FALSE
+  )
+
+  sem.pars$edge[pt$op %in% c("~~", "~*~")] <- "<->"
+  sem.pars$edge[pt$op == "~"] <- "~>"
+  sem.pars$edge[pt$op == "=~"] <- "->"
+  sem.pars$edge[pt$op == "~1"] <- "int"
+  sem.pars$edge[grepl("\\|", pt$op)] <- "|"
+
+  thresholds <- sem.pars[grepl("\\|", sem.pars$edge), -(3:4), drop=FALSE]
+  keep <- !pt$op %in% c(":=", "<", ">", "==", "|")
+  sem.pars <- sem.pars[keep, , drop=FALSE]
+
+  var.names <- lavaan::lavNames(ref.fit, type="ov")
+  fact.names <- lavaan::lavNames(ref.fit, type="lv")
+  fact.names <- fact.names[!fact.names %in% var.names]
+  vars <- data.frame(
+    name=c(var.names, fact.names),
+    manifest=c(var.names, fact.names) %in% var.names,
+    exogenous=NA,
+    stringsAsFactors=FALSE
+  )
+
+  list(
+    Pars=sem.pars,
+    Vars=vars,
+    Thresholds=thresholds,
+    Computed=TRUE,
+    ObsCovs=lavaan.survey.mi.semPlotModel.covs(object$fits, "sampstat"),
+    ImpCovs=lavaan.survey.mi.semPlotModel.covs(object$fits, "implied"),
+    Original=list(object)
+  )
+}
+
+lavaan.survey.mi.semPlotModel.covs <- function(fits, what) {
+  covs <- lapply(fits, lavaan.survey.mi.extract.semPlotModel.covs, what=what)
+  ref.length <- length(covs[[1]])
+  if(!all(vapply(covs, length, integer(1)) == ref.length)) {
+    return(covs[[1]])
+  }
+
+  out <- lapply(seq_len(ref.length), function(g) {
+    mats <- lapply(covs, `[[`, g)
+    if(!all(vapply(mats, is.matrix, logical(1)))) return(mats[[1]])
+    average.matrices(mats)
+  })
+  group.labels <- lavaan::lavInspect(fits[[1]], "group.label")
+  if(length(group.labels) == length(out)) names(out) <- group.labels
+  out
+}
+
+lavaan.survey.mi.extract.semPlotModel.covs <- function(fit, what) {
+  element <- if(isTRUE(lavaan::lavInspect(fit, "options")$conditional.x)) {
+    "res.cov"
+  }
+  else {
+    "cov"
+  }
+  stats <- lavaan::lavTech(fit, what, add.labels=TRUE)
+  if(is.matrix(stats)) return(list(stats))
+
+  lapply(stats, function(x) {
+    if(is.matrix(x)) return(x)
+    x[[element]] %||% x$cov
+  })
 }
 
 parameterEstimates <- function(object, ...) {

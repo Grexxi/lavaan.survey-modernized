@@ -722,6 +722,24 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
                        output="data.frame")
   expect_equal(fm.df$measure, c("cfi.scaled", "rmsea.scaled"))
   expect_equal(fm.df$value, as.numeric(fm), check.attributes=FALSE)
+
+  semplot.slots <- lavaan.survey:::lavaan.survey.mi.semPlotModel.slots(fit_pooled)
+  expect_true(all(c("Pars", "Vars", "Thresholds", "Computed", "ObsCovs",
+                    "ImpCovs", "Original") %in% names(semplot.slots)))
+  expect_true(semplot.slots$Computed)
+  expect_true(all(c("lhs", "edge", "rhs", "est", "std") %in%
+                    names(semplot.slots$Pars)))
+  expect_true(any(semplot.slots$Pars$edge == "->"))
+  expect_true(any(semplot.slots$Pars$edge == "<->"))
+  expect_true(any(semplot.slots$Vars$name == "f"))
+  expect_true(nrow(semplot.slots$Thresholds) > 0L)
+  expect_equal(length(semplot.slots$ObsCovs), 1L)
+  expect_equal(length(semplot.slots$ImpCovs), 1L)
+
+  if(requireNamespace("semPlot", quietly=TRUE)) {
+    semplot.model <- semPlot::semPlotModel(fit_pooled)
+    expect_s4_class(semplot.model, "semPlotModel")
+  }
 })
 
 test_that("mixed MI defaults to the Mplus-nearer parameter-pooling path", {
