@@ -18,9 +18,10 @@ endorsed by the original author/maintainer.
   point-WLS strategy, and, where relevant, within-imputation covariance
   strategy when ordinal or mixed models are fitted. The same metadata are
   stored in `attr(fit, "lavaan.survey.info")`.
-* Adds optional verbose progress messages for long mixed
-  ordinal/continuous multiple-imputation runs, including per-imputation model
-  fits and replicate-weight refits.
+* Adds optional verbose progress messages for long multiple-imputation runs:
+  continuous models report per-imputation sample-statistic computation, while
+  mixed ordinal/continuous parameter-pooling models also report
+  per-imputation model fits and replicate-weight refits.
 
 ## Supported workflows
 

@@ -5,8 +5,9 @@ lavaan.survey <-
   function(lavaan.fit, survey.design, 
            estimator=c("MLM", "MLMV", "MLMVS", "WLS", "DWLS", "ML"),
            estimator.gamma=c("default","Yuan-Bentler"),
-           ordered=NULL, ...) {
+           ordered=NULL, verbose=interactive(), ...) {
 
+  verbose <- isTRUE(verbose)
   estimator.supplied <- !missing(estimator)
   ordered.from.fit <- lavNames(lavaan.fit, type="ov.ord", group=1)
   ordinal.requested <- isTRUE(ordered) || is.character(ordered) ||
@@ -25,7 +26,8 @@ lavaan.survey <-
     return(lavaan.survey.ordinal(lavaan.fit=lavaan.fit,
                                  survey.design=survey.design,
                                  ordered=ordered,
-                                 estimator=estimator, ...))
+                                 estimator=estimator,
+                                 verbose=verbose, ...))
   }
   
   # Not all estimators in lavaan make sense to use here, therefore matching args
@@ -117,8 +119,33 @@ lavaan.survey <-
       sample.nobs.g <- get.sample.nobs(survey.design.g)
       
       # Retrieve point and variance estimates per imputation.
-      stats.list <- lapply(survey.design.g$designs, get.stats.design,
-                           sample.nobs.g=sample.nobs.g)
+      stats.list <- lapply(seq_along(survey.design.g$designs), function(i) {
+        if(verbose) {
+          if(ngroups > 1) {
+            message("Computing sample statistics for group ", g, "/", ngroups,
+                    ", imputation ", i, "/", length(survey.design.g$designs),
+                    ".")
+          }
+          else {
+            message("Computing sample statistics for imputation ", i, "/",
+                    length(survey.design.g$designs), ".")
+          }
+        }
+        stats <- get.stats.design(survey.design.g$designs[[i]],
+                                  sample.nobs.g=sample.nobs.g)
+        if(verbose) {
+          if(ngroups > 1) {
+            message("Computing sample statistics for group ", g, "/", ngroups,
+                    ", imputation ", i, "/", length(survey.design.g$designs),
+                    " complete.")
+          }
+          else {
+            message("Computing sample statistics for imputation ", i, "/",
+                    length(survey.design.g$designs), " complete.")
+          }
+        }
+        stats
+      })
       m  <- length(stats.list) # no. imputation
       
       # Point estimates are average over imputations

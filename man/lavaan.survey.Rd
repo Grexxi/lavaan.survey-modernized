@@ -27,7 +27,7 @@
 lavaan.survey(lavaan.fit, survey.design, 
 	     estimator=c("MLM", "MLMV", "MLMVS", "WLS", "DWLS", "ML"),
 	     estimator.gamma=c("default","Yuan-Bentler"),
-	     ordered=NULL, ...)
+	     ordered=NULL, verbose=interactive(), ...)
 	 
 
 }
@@ -75,12 +75,18 @@ lavaan.survey(lavaan.fit, survey.design,
 	supplied, it is passed as the ordered-variable set. If \code{FALSE},
 	the continuous path is used.
    }
+   \item{verbose}{
+	Logical. If \code{TRUE}, prints progress messages for potentially long
+	multiple-imputation work. In the continuous path, this reports
+	per-imputation sample-statistic computation. In the ordinal or mixed
+	path, it is passed to \code{\link{lavaan.survey.ordinal}}. The default is
+	\code{\link{interactive}()}.
+   }
    \item{...}{
 	Additional arguments passed to \code{\link{lavaan.survey.ordinal}}
 	when the ordinal or mixed ordinal/continuous path is used. Useful
 	arguments include \code{rep.type}, \code{replicates},
-	\code{point.wls}, \code{mi.pooling}, \code{within.variance}, and
-	\code{verbose}.
+	\code{point.wls}, \code{mi.pooling}, and \code{within.variance}.
    }
 }
 \details{
