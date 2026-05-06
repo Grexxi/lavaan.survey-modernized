@@ -28,6 +28,10 @@ endorsed by the original author/maintainer.
 * Adds extractor support for Rubin-pooled MI fits:
   `parameterEstimates()` returns pooled estimates with Barnard-Rubin degrees
   of freedom, and `fitMeasures()` returns pooled fit-measure averages.
+* Adds pooled standardized output for `lavaan.survey.mi` objects:
+  `parameterEstimates(..., standardized = TRUE)` now adds `std.lv`,
+  `std.all`, and `std.nox`, while `standardizedSolution()` returns
+  Rubin-pooled standardized estimates.
 
 ## Supported workflows
 

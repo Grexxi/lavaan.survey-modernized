@@ -1049,10 +1049,18 @@ parameterEstimates <- function(object, ...) {
   lavaan::parameterEstimates(object, ...)
 }
 
+standardizedSolution <- function(object, ...) {
+  if(inherits(object, "lavaan.survey.mi")) {
+    return(standardizedSolution.lavaan.survey.mi(object, ...))
+  }
+  lavaan::standardizedSolution(object, ...)
+}
+
 parameterEstimates.lavaan.survey.mi <- function(object, se=TRUE, zstat=TRUE,
                                                 pvalue=TRUE, ci=TRUE,
                                                 standardized=FALSE,
                                                 level=0.95, plabel=FALSE,
+                                                cov.std=TRUE,
                                                 remove.system.eq=TRUE,
                                                 remove.eq=TRUE,
                                                 remove.ineq=TRUE,
@@ -1061,10 +1069,6 @@ parameterEstimates.lavaan.survey.mi <- function(object, se=TRUE, zstat=TRUE,
                                                 output=c("data.frame", "table"),
                                                 header=FALSE, ...) {
   output <- match.arg(output)
-  if(isTRUE(standardized)) {
-    message("Standardized estimates are not yet pooled for lavaan.survey.mi; reporting unstandardized estimates.")
-  }
-
   pt <- as.data.frame(lavaan::parTable(object$fits[[1]]),
                       stringsAsFactors=FALSE)
   ref.names <- names(object$coef)
@@ -1146,10 +1150,182 @@ parameterEstimates.lavaan.survey.mi <- function(object, se=TRUE, zstat=TRUE,
   }
   out <- out[keep, , drop=FALSE]
 
+  if(isTRUE(standardized)) {
+    for(type in c("std.lv", "std.all", "std.nox")) {
+      std <- lavaan.survey.mi.standardized.table(
+        object=object,
+        type=type,
+        se=FALSE,
+        zstat=FALSE,
+        pvalue=FALSE,
+        ci=FALSE,
+        level=level,
+        cov.std=cov.std,
+        remove.eq=remove.eq,
+        remove.ineq=remove.ineq,
+        remove.def=remove.def
+      )
+      out[[type]] <- std$est.std[match(lavaan.survey.mi.parameter.key(out),
+                                       lavaan.survey.mi.parameter.key(std))]
+    }
+  }
+
   if(identical(output, "table")) {
     class(out) <- c("lavaan.data.frame", "data.frame")
   }
   out
+}
+
+standardizedSolution.lavaan.survey.mi <- function(object, type="std.all",
+                                                  se=TRUE, zstat=TRUE,
+                                                  pvalue=TRUE, ci=TRUE,
+                                                  level=0.95, cov.std=TRUE,
+                                                  remove.eq=TRUE,
+                                                  remove.ineq=TRUE,
+                                                  remove.def=FALSE,
+                                                  partable=NULL, GLIST=NULL,
+                                                  est=NULL,
+                                                  output="data.frame") {
+  if(!is.null(partable) || !is.null(GLIST) || !is.null(est)) {
+    warning("`partable`, `GLIST`, and `est` are ignored for lavaan.survey.mi objects.",
+            call.=FALSE)
+  }
+  out <- lavaan.survey.mi.standardized.table(
+    object=object,
+    type=type,
+    se=se,
+    zstat=zstat,
+    pvalue=pvalue,
+    ci=ci,
+    level=level,
+    cov.std=cov.std,
+    remove.eq=remove.eq,
+    remove.ineq=remove.ineq,
+    remove.def=remove.def
+  )
+  attr(out, "standardized.type") <- type
+  attr(out, "se.method") <-
+    "Rubin pooling of per-imputation lavaan standardized-solution SEs"
+  if(identical(output, "table")) {
+    class(out) <- c("lavaan.data.frame", "data.frame")
+  }
+  out
+}
+
+lavaan.survey.mi.standardized.table <- function(object, type="std.all",
+                                                se=TRUE, zstat=TRUE,
+                                                pvalue=TRUE, ci=TRUE,
+                                                level=0.95, cov.std=TRUE,
+                                                remove.eq=TRUE,
+                                                remove.ineq=TRUE,
+                                                remove.def=FALSE) {
+  need.se <- isTRUE(se) || isTRUE(zstat) || isTRUE(pvalue) || isTRUE(ci)
+  std.list <- lapply(object$fits, function(fit) {
+    lavaan::standardizedSolution(
+      fit,
+      type=type,
+      se=need.se,
+      zstat=FALSE,
+      pvalue=FALSE,
+      ci=FALSE,
+      level=level,
+      cov.std=cov.std,
+      remove.eq=remove.eq,
+      remove.ineq=remove.ineq,
+      remove.def=remove.def,
+      output="data.frame"
+    )
+  })
+
+  ref <- std.list[[1]]
+  ref.key <- lavaan.survey.mi.parameter.key(ref)
+  std.list <- lapply(std.list, function(x) {
+    x.key <- lavaan.survey.mi.parameter.key(x)
+    idx <- match(ref.key, x.key)
+    if(anyNA(idx)) {
+      stop("Could not align standardized solution rows across imputations.",
+           call.=FALSE)
+    }
+    x[idx, , drop=FALSE]
+  })
+
+  est.matrix <- do.call(rbind, lapply(std.list, function(x) x$est.std))
+  est.pooled <- colMeans(est.matrix, na.rm=TRUE)
+  out <- ref
+  out$est.std <- as.numeric(est.pooled)
+
+  if(need.se && all(vapply(std.list, function(x) "se" %in% names(x), logical(1)))) {
+    se.matrix <- do.call(rbind, lapply(std.list, function(x) x$se))
+    within.var <- colMeans(se.matrix^2, na.rm=TRUE)
+    within.var[!is.finite(within.var)] <- 0
+    if(length(std.list) > 1L) {
+      between.var <- apply(est.matrix, 2, stats::var, na.rm=TRUE)
+    }
+    else {
+      between.var <- rep(0, length(est.pooled))
+    }
+    between.var[!is.finite(between.var)] <- 0
+    total.var <- within.var +
+      ((length(std.list) + 1) / length(std.list)) * between.var
+    total.var[total.var < 0] <- NA_real_
+    std.se <- sqrt(total.var)
+    total.vcov <- diag(total.var, nrow=length(total.var))
+    within.vcov <- diag(within.var, nrow=length(within.var))
+    between.vcov <- diag(between.var, nrow=length(between.var))
+    dimnames(total.vcov) <- list(ref.key, ref.key)
+    dimnames(within.vcov) <- list(ref.key, ref.key)
+    dimnames(between.vcov) <- list(ref.key, ref.key)
+    df <- barnard.rubin.df(list(
+      coef=stats::setNames(est.pooled, ref.key),
+      vcov=total.vcov,
+      vcov.within=within.vcov,
+      vcov.between=between.vcov,
+      m=object$m,
+      df.complete=object$df.complete
+    ))
+
+    if(isTRUE(se)) {
+      out$se <- std.se
+    }
+    else if("se" %in% names(out)) {
+      out$se <- NULL
+    }
+    if(isTRUE(zstat)) {
+      out$t <- out$est.std / std.se
+      out$df <- df
+    }
+    if(isTRUE(pvalue)) {
+      t.value <- out$est.std / std.se
+      p <- 2 * stats::pt(abs(t.value), df=df, lower.tail=FALSE)
+      normal.ref <- is.infinite(df)
+      p[normal.ref] <- 2 * stats::pnorm(abs(t.value[normal.ref]),
+                                        lower.tail=FALSE)
+      out$pvalue <- p
+    }
+    if(isTRUE(ci)) {
+      alpha <- 1 - level
+      crit <- stats::qt(1 - alpha / 2, df=df)
+      normal.ref <- is.infinite(df)
+      crit[normal.ref] <- stats::qnorm(1 - alpha / 2)
+      out$ci.lower <- out$est.std - crit * std.se
+      out$ci.upper <- out$est.std + crit * std.se
+    }
+  }
+  else {
+    drop.cols <- intersect(c("se", "z", "pvalue", "ci.lower", "ci.upper"),
+                           names(out))
+    out[drop.cols] <- NULL
+  }
+  if("z" %in% names(out)) {
+    out$z <- NULL
+  }
+  rownames(out) <- NULL
+  out
+}
+
+lavaan.survey.mi.parameter.key <- function(x) {
+  key.cols <- intersect(c("lhs", "op", "rhs", "group"), names(x))
+  do.call(paste, c(x[key.cols], sep="\r"))
 }
 
 print.lavaan.survey.mi <- function(x, ...) {
@@ -1170,7 +1346,8 @@ print.lavaan.survey.mi <- function(x, ...) {
 summary.lavaan.survey.mi <- function(object, fit.measures=TRUE,
                                      standardized=FALSE, ci=FALSE,
                                      level=0.95, ...) {
-  out <- lavaan.survey.mi.parameter.table(object, ci=ci, level=level)
+  out <- lavaan.survey.mi.parameter.table(object, ci=ci, level=level,
+                                          standardized=standardized)
   attr(out, "fit.measures") <- if(isTRUE(fit.measures)) object$fit.measures else numeric(0)
   attr(out, "survey.info") <- get.ordinal.survey.info(object)
   attr(out, "m") <- object$m
@@ -1183,7 +1360,8 @@ summary.lavaan.survey.mi <- function(object, fit.measures=TRUE,
   invisible(out)
 }
 
-lavaan.survey.mi.parameter.table <- function(object, ci=FALSE, level=0.95) {
+lavaan.survey.mi.parameter.table <- function(object, ci=FALSE, level=0.95,
+                                             standardized=FALSE) {
   se <- sqrt(diag(object$vcov))
   t.value <- object$coef / se
   df <- barnard.rubin.df(object)
@@ -1208,6 +1386,18 @@ lavaan.survey.mi.parameter.table <- function(object, ci=FALSE, level=0.95) {
     crit[normal.ref] <- stats::qnorm(1 - alpha / 2)
     out$ci.lower <- out$Estimate - crit * out$Std.Err
     out$ci.upper <- out$Estimate + crit * out$Std.Err
+  }
+  if(isTRUE(standardized)) {
+    pe.std <- parameterEstimates.lavaan.survey.mi(
+      object,
+      se=FALSE,
+      zstat=FALSE,
+      pvalue=FALSE,
+      ci=FALSE,
+      standardized=TRUE,
+      remove.nonfree=TRUE
+    )
+    out$Std.all <- pe.std$std.all
   }
   rownames(out) <- names(object$coef)
   out
@@ -1303,7 +1493,7 @@ print.summary.lavaan.survey.mi <- function(x, digits=3, ...) {
   }
   cat("Tests:           t statistics with Barnard-Rubin degrees of freedom\n")
   if(standardized.requested) {
-    cat("Standardized:    not yet pooled; unstandardized estimates shown\n")
+    cat("Standardized:    pooled std.all column shown\n")
   }
 
   if(length(fit.measures)) {
@@ -1338,6 +1528,9 @@ print.summary.lavaan.survey.mi <- function(x, digits=3, ...) {
       `P(>|t|)`=format.mi.p(rows$P.value),
       check.names=FALSE
     )
+    if("Std.all" %in% names(rows)) {
+      out$Std.all <- format.mi.number(rows$Std.all, digits=digits)
+    }
     if(ci) {
       out[[paste0("ci.lower.", round(100 * level))]] <-
         format.mi.number(rows$ci.lower, digits=digits)

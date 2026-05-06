@@ -667,6 +667,31 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
                check.attributes=FALSE)
   expect_equal(pe$pvalue, expected_p, tolerance=1e-10)
 
+  pe_std <- parameterEstimates(fit_pooled, standardized=TRUE,
+                               remove.nonfree=TRUE)
+  expect_true(all(c("std.lv", "std.all", "std.nox") %in% names(pe_std)))
+  expect_equal(pe_std$est, pe$est, tolerance=1e-10,
+               check.attributes=FALSE)
+
+  std <- standardizedSolution(fit_pooled, se=FALSE)
+  per_imputation_std <- lapply(per_imputation, lavaan::standardizedSolution,
+                               se=FALSE)
+  expected_std <- colMeans(do.call(rbind, lapply(per_imputation_std,
+                                                 `[[`, "est.std")))
+  expect_equal(std$est.std, as.numeric(expected_std), tolerance=1e-10,
+               check.attributes=FALSE)
+
+  std_with_se <- standardizedSolution(fit_pooled)
+  expect_true(all(c("est.std", "se", "t", "df", "pvalue", "ci.lower",
+                    "ci.upper") %in% names(std_with_se)))
+  expect_true(all(is.finite(std_with_se$est.std)))
+
+  summary_std <- capture.output(summary_std_out <- summary(fit_pooled,
+                                                           standardized=TRUE))
+  expect_true(any(grepl("pooled std.all column shown", summary_std,
+                        fixed=TRUE)))
+  expect_true("Std.all" %in% names(summary_std_out))
+
   fm <- fitMeasures(fit_pooled, c("cfi.scaled", "rmsea.scaled"))
   expect_equal(fm,
                fit_pooled$fit.measures[c("cfi.scaled", "rmsea.scaled")],
