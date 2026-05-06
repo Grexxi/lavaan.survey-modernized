@@ -1221,9 +1221,7 @@ lavaan.survey.mi.semPlotModel.slots <- function(object) {
   if(!"free" %in% names(pt)) pt$free <- 0L
   if(!"est" %in% names(pt)) pt$est <- NA_real_
 
-  pt.key <- lavaan.survey.mi.parameter.key(pt)
-  pars.key <- lavaan.survey.mi.parameter.key(pars)
-  idx <- match(pt.key, pars.key)
+  idx <- lavaan.survey.mi.match.parameter.rows(pt, pars)
 
   est <- pt$est
   std <- rep(NA_real_, nrow(pt))
@@ -1437,8 +1435,7 @@ parameterEstimates.lavaan.survey.mi <- function(object, se=TRUE, zstat=TRUE,
         remove.ineq=remove.ineq,
         remove.def=remove.def
       )
-      out[[type]] <- std$est.std[match(lavaan.survey.mi.parameter.key(out),
-                                       lavaan.survey.mi.parameter.key(std))]
+      out[[type]] <- std$est.std[lavaan.survey.mi.match.parameter.rows(out, std)]
     }
   }
 
@@ -1625,6 +1622,20 @@ lavaan.survey.mi.parameter.key <- function(x) {
   do.call(paste, c(x[key.cols], sep="\r"))
 }
 
+lavaan.survey.mi.match.parameter.rows <- function(x, table) {
+  key.cols <- c("lhs", "op", "rhs")
+  if("group" %in% names(x) && "group" %in% names(table)) {
+    key.cols <- c(key.cols, "group")
+  }
+  key.cols <- intersect(key.cols, intersect(names(x), names(table)))
+  match(lavaan.survey.mi.parameter.key.with.cols(x, key.cols),
+        lavaan.survey.mi.parameter.key.with.cols(table, key.cols))
+}
+
+lavaan.survey.mi.parameter.key.with.cols <- function(x, key.cols) {
+  do.call(paste, c(x[key.cols], sep="\r"))
+}
+
 print.lavaan.survey.mi <- function(x, ...) {
   survey.info <- get.ordinal.survey.info(x)
   mode <- if(!is.null(survey.info)) survey.info$mode %||% "survey SEM" else "survey SEM"
@@ -1695,7 +1706,9 @@ lavaan.survey.mi.parameter.table <- function(object, ci=FALSE, level=0.95,
       standardized=TRUE,
       remove.nonfree=TRUE
     )
-    out$Std.all <- pe.std$std.all
+    out$Std.all <- pe.std$std.all[
+      lavaan.survey.mi.match.parameter.rows(out, pe.std)
+    ]
   }
   rownames(out) <- names(object$coef)
   out

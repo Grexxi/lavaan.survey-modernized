@@ -713,6 +713,16 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
   expect_true(any(grepl("pooled std.all column shown", summary_std,
                         fixed=TRUE)))
   expect_true("Std.all" %in% names(summary_std_out))
+  expect_true(any(is.finite(summary_std_out$Std.all)))
+  expect_equal(
+    summary_std_out$Std.all,
+    pe_std$std.all[
+      lavaan.survey:::lavaan.survey.mi.match.parameter.rows(summary_std_out,
+                                                            pe_std)
+    ],
+    tolerance=1e-10,
+    check.attributes=FALSE
+  )
 
   fm <- fitMeasures(fit_pooled, c("cfi.scaled", "rmsea.scaled"))
   expect_equal(fm,

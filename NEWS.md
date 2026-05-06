@@ -31,7 +31,8 @@ endorsed by the original author/maintainer.
 * Adds pooled standardized output for `lavaan.survey.mi` objects:
   `parameterEstimates(..., standardized = TRUE)` now adds `std.lv`,
   `std.all`, and `std.nox`, while `standardizedSolution()` returns
-  Rubin-pooled standardized estimates.
+  Rubin-pooled standardized estimates. `summary(..., standardized = TRUE)`
+  now displays pooled `Std.all` values using the same row matching.
 * Adds `standardized.se = c("lavaan", "replicate")` for mixed MI parameter
   pooling. The default keeps standardized output fast; the replicate option
   stores replicate-based standardized within-imputation covariance matrices for
