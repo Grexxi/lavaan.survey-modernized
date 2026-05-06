@@ -1623,13 +1623,23 @@ lavaan.survey.mi.parameter.key <- function(x) {
 }
 
 lavaan.survey.mi.match.parameter.rows <- function(x, table) {
-  key.cols <- c("lhs", "op", "rhs")
+  base.cols <- intersect(c("lhs", "op", "rhs"), intersect(names(x), names(table)))
+  key.cols <- base.cols
   if("group" %in% names(x) && "group" %in% names(table)) {
     key.cols <- c(key.cols, "group")
   }
-  key.cols <- intersect(key.cols, intersect(names(x), names(table)))
-  match(lavaan.survey.mi.parameter.key.with.cols(x, key.cols),
-        lavaan.survey.mi.parameter.key.with.cols(table, key.cols))
+  idx <- match(lavaan.survey.mi.parameter.key.with.cols(x, key.cols),
+               lavaan.survey.mi.parameter.key.with.cols(table, key.cols))
+
+  if(anyNA(idx) && !identical(key.cols, base.cols)) {
+    x.base <- lavaan.survey.mi.parameter.key.with.cols(x, base.cols)
+    table.base <- lavaan.survey.mi.parameter.key.with.cols(table, base.cols)
+    if(!anyDuplicated(x.base) && !anyDuplicated(table.base)) {
+      idx[is.na(idx)] <- match(x.base, table.base)[is.na(idx)]
+    }
+  }
+
+  idx
 }
 
 lavaan.survey.mi.parameter.key.with.cols <- function(x, key.cols) {

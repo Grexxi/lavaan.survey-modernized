@@ -723,6 +723,13 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
     tolerance=1e-10,
     check.attributes=FALSE
   )
+  mismatched_group <- pe_std
+  mismatched_group$group <- "single"
+  expect_equal(
+    lavaan.survey:::lavaan.survey.mi.match.parameter.rows(summary_std_out,
+                                                          mismatched_group),
+    seq_len(nrow(summary_std_out))
+  )
 
   fm <- fitMeasures(fit_pooled, c("cfi.scaled", "rmsea.scaled"))
   expect_equal(fm,
