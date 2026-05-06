@@ -265,12 +265,14 @@ lavaan.survey.ordinal <-
            point.wls=c("auto", "lavaan", "design"),
            mi.pooling=c("auto", "parameters", "sample.statistics"),
            within.variance=c("auto", "replicate", "lavaan.robust", "naive"),
+           standardized.se=c("lavaan", "replicate"),
            verbose=interactive()) {
 
   estimator <- match.arg(estimator)
   point.wls <- match.arg(point.wls)
   mi.pooling <- match.arg(mi.pooling)
   within.variance <- match.arg(within.variance)
+  standardized.se <- match.arg(standardized.se)
   verbose <- isTRUE(verbose)
 
   ngroups <- lavInspect(lavaan.fit, "ngroups")
@@ -330,16 +332,25 @@ lavaan.survey.ordinal <-
     within.variance <- resolve.parameter.mi.within.variance(within.variance,
                                                             rep.design,
                                                             point.wls)
+    if(standardized.se == "replicate" && within.variance != "replicate") {
+      stop("standardized.se = \"replicate\" requires within.variance = \"replicate\".",
+           call.=FALSE)
+    }
   }
   else {
     within.variance <- "none"
+    if(standardized.se == "replicate") {
+      warning("standardized.se = \"replicate\" is only used with mi.pooling = \"parameters\".",
+              call.=FALSE)
+    }
   }
   survey.info <- make.ordinal.survey.info(mode=if(all.ordinal) "ordinal" else "mixed ordinal/continuous",
                                           point.wls=point.wls,
                                           mi.pooling=if(is.mi.design) mi.pooling else "none",
                                           estimator=estimator,
                                           multiple.imputation=is.mi.design,
-                                          within.variance=within.variance)
+                                          within.variance=within.variance,
+                                          standardized.se=standardized.se)
 
   if(mi.pooling == "parameters") {
     if(!is.mi.design) {
@@ -349,7 +360,8 @@ lavaan.survey.ordinal <-
       lavaan.fit=lavaan.fit, rep.design=rep.design, ordered=ordered,
       estimator=estimator, point.wls=point.wls, rep.type=rep.type,
       replicates=replicates, within.variance=within.variance,
-      survey.info=survey.info, verbose=verbose
+      survey.info=survey.info, standardized.se=standardized.se,
+      verbose=verbose
     )
     inform.ordinal.survey.info(survey.info)
     return(fit)
@@ -620,14 +632,16 @@ get.ordinal.point.wls <- function(Gamma, point.stats, point.wls, group=NULL) {
 
 make.ordinal.survey.info <- function(mode, point.wls, mi.pooling, estimator,
                                      multiple.imputation,
-                                     within.variance="none") {
+                                     within.variance="none",
+                                     standardized.se="lavaan") {
   list(function.name="lavaan.survey.ordinal",
        mode=mode,
        mi.pooling=mi.pooling,
        point.wls=point.wls,
        estimator=estimator,
        multiple.imputation=multiple.imputation,
-       within.variance=within.variance)
+       within.variance=within.variance,
+       standardized.se=standardized.se)
 }
 
 attach.ordinal.survey.info <- function(fit, survey.info) {
@@ -645,7 +659,7 @@ get.ordinal.survey.info <- function(fit) {
 
   if(is.list(fit)) {
     fields <- c("mode", "mi.pooling", "point.wls", "estimator",
-                "multiple.imputation", "within.variance")
+                "multiple.imputation", "within.variance", "standardized.se")
     survey.info <- list()
     for(field in fields) {
       value <- fit[[field]]
@@ -664,6 +678,10 @@ format.ordinal.survey.info <- function(survey.info) {
   if(!is.null(survey.info$within.variance) &&
      survey.info$mi.pooling == "parameters") {
     out <- c(out, paste0("Within variance: ", survey.info$within.variance))
+  }
+  if(!is.null(survey.info$standardized.se) &&
+     survey.info$mi.pooling == "parameters") {
+    out <- c(out, paste0("Standardized SE: ", survey.info$standardized.se))
   }
   out
 }
@@ -688,6 +706,7 @@ pool.ordinal.mi.parameters <- function(lavaan.fit, rep.design, ordered,
                                        replicates,
                                        within.variance="naive",
                                        survey.info=NULL,
+                                       standardized.se="lavaan",
                                        verbose=FALSE) {
   verbose <- isTRUE(verbose)
   if(point.wls != "lavaan" && within.variance != "replicate") {
@@ -767,9 +786,16 @@ pool.ordinal.mi.parameters <- function(lavaan.fit, rep.design, ordered,
   }
 
   vcov.list <- NULL
+  standardized.vcov.list <- NULL
   if(point.wls == "lavaan" && within.variance == "replicate") {
     if(verbose) {
       message("Estimating replicate within-imputation variance.")
+    }
+    standardized.types <- if(standardized.se == "replicate") {
+      c("std.lv", "std.all", "std.nox")
+    }
+    else {
+      NULL
     }
     vcov.list <- Map(estimate.replicate.parameter.vcov,
                      design=rep.design$designs,
@@ -779,12 +805,17 @@ pool.ordinal.mi.parameters <- function(lavaan.fit, rep.design, ordered,
                                    ordered=ordered,
                                    estimator=estimator,
                                    imputations=length(rep.design$designs),
+                                   standardized.types=standardized.types,
                                    verbose=verbose))
+    if(standardized.se == "replicate") {
+      standardized.vcov.list <- lapply(vcov.list, attr, "standardized.vcov")
+    }
   }
 
   pooled <- pool.lavaan.mi.parameters(
     fits,
     vcov.list=vcov.list,
+    standardized.vcov.list=standardized.vcov.list,
     df.complete=get.mi.complete.df(rep.design)
   )
   pooled$call <- lavInspect(lavaan.fit, "call")
@@ -827,14 +858,33 @@ estimate.replicate.parameter.vcov <- function(design, point.fit, lavaan.fit,
                                               ordered, estimator,
                                               imputation.index=NULL,
                                               imputations=NULL,
+                                              standardized.types=NULL,
                                               verbose=FALSE) {
   verbose <- isTRUE(verbose)
   ref.names <- names(lavaan::coef(point.fit))
   point.coef <- lavaan::coef(point.fit)[ref.names]
+  standardized.types <- unique(standardized.types)
+  if(length(standardized.types)) {
+    point.std <- lapply(standardized.types, function(type) {
+      x <- lavaan::standardizedSolution(point.fit, type=type, se=FALSE,
+                                        output="data.frame")
+      key <- lavaan.survey.mi.parameter.key(x)
+      out <- x$est.std
+      names(out) <- key
+      out
+    })
+    names(point.std) <- standardized.types
+  }
+  else {
+    point.std <- list()
+  }
   rep.weights <- stats::weights(design, type="analysis")
   n.rep <- ncol(rep.weights)
   rep.coef <- matrix(NA_real_, nrow=n.rep, ncol=length(ref.names),
                      dimnames=list(NULL, ref.names))
+  rep.std <- lapply(point.std, function(x) {
+    matrix(NA_real_, nrow=n.rep, ncol=length(x), dimnames=list(NULL, names(x)))
+  })
 
   report.every <- max(1L, floor(n.rep / 20L))
   imputation.label <- if(!is.null(imputation.index) && !is.null(imputations)) {
@@ -858,6 +908,16 @@ estimate.replicate.parameter.vcov <- function(design, point.fit, lavaan.fit,
     if(!inherits(fit.r, "try-error") &&
        isTRUE(try(lavaan::lavInspect(fit.r, "converged"), silent=TRUE))) {
       rep.coef[r, ] <- lavaan::coef(fit.r)[ref.names]
+      for(type in names(rep.std)) {
+        std.r <- try(lavaan::standardizedSolution(fit.r, type=type, se=FALSE,
+                                                  output="data.frame"),
+                     silent=TRUE)
+        if(!inherits(std.r, "try-error")) {
+          std.r.key <- lavaan.survey.mi.parameter.key(std.r)
+          rep.std[[type]][r, ] <- std.r$est.std[match(colnames(rep.std[[type]]),
+                                                      std.r.key)]
+        }
+      }
     }
 
     if(verbose && (r == n.rep || r %% report.every == 0L)) {
@@ -893,6 +953,35 @@ estimate.replicate.parameter.vcov <- function(design, point.fit, lavaan.fit,
                       coef=point.coef)
   V <- as.matrix(V)
   dimnames(V) <- list(ref.names, ref.names)
+  if(length(rep.std)) {
+    standardized.vcov <- lapply(names(rep.std), function(type) {
+      keep.std <- keep & stats::complete.cases(rep.std[[type]])
+      n.keep.std <- sum(keep.std)
+      if(n.keep.std < min.keep) {
+        stop("Only ", n.keep.std, " of ", n.total,
+             " replicate standardized lavaan fits converged for ", type,
+             "; cannot estimate a stable standardized replicate variance.",
+             call.=FALSE)
+      }
+      failure.rate.std <- 1 - n.keep.std / n.total
+      if(failure.rate.std > 0.10) {
+        warning(sprintf(
+          "%.0f%% of replicate standardized lavaan fits did not converge for %s. The replicate-based standardized within-imputation variance estimate may underestimate uncertainty.",
+          100 * failure.rate.std, type
+        ), call.=FALSE)
+      }
+      V.std <- survey::svrVar(rep.std[[type]][keep.std, , drop=FALSE],
+                              scale=design$scale,
+                              rscales=design$rscales[keep.std],
+                              mse=design$mse,
+                              coef=point.std[[type]])
+      V.std <- as.matrix(V.std)
+      dimnames(V.std) <- list(names(point.std[[type]]), names(point.std[[type]]))
+      V.std
+    })
+    names(standardized.vcov) <- names(rep.std)
+    attr(V, "standardized.vcov") <- standardized.vcov
+  }
   V
 }
 
@@ -934,13 +1023,20 @@ get.mi.complete.df <- function(rep.design) {
   if(length(finite.dfs)) min(finite.dfs) else Inf
 }
 
-pool.lavaan.mi.parameters <- function(fits, vcov.list=NULL, df.complete=Inf) {
+pool.lavaan.mi.parameters <- function(fits, vcov.list=NULL,
+                                      standardized.vcov.list=NULL,
+                                      df.complete=Inf) {
   if(length(fits) == 0L) {
     stop("At least one fitted lavaan object is required for MI parameter pooling.")
   }
   if(!is.null(vcov.list) && length(vcov.list) != length(fits)) {
     stop("vcov.list (", length(vcov.list), ") and fits (", length(fits),
          ") must have the same length.")
+  }
+  if(!is.null(standardized.vcov.list) &&
+     length(standardized.vcov.list) != length(fits)) {
+    stop("standardized.vcov.list (", length(standardized.vcov.list),
+         ") and fits (", length(fits), ") must have the same length.")
   }
 
   ref.names <- names(lavaan::coef(fits[[1]]))
@@ -984,7 +1080,27 @@ pool.lavaan.mi.parameters <- function(fits, vcov.list=NULL, df.complete=Inf) {
               fit.measures=fit.measures,
               m=length(fits),
               df.complete=df.complete)
+  if(!is.null(standardized.vcov.list)) {
+    out$standardized.vcov.within <-
+      pool.lavaan.mi.standardized.within.vcov(standardized.vcov.list)
+  }
   class(out) <- "lavaan.survey.mi"
+  out
+}
+
+pool.lavaan.mi.standardized.within.vcov <- function(standardized.vcov.list) {
+  types <- Reduce(intersect, lapply(standardized.vcov.list, names))
+  out <- lapply(types, function(type) {
+    mats <- lapply(standardized.vcov.list, `[[`, type)
+    ref.dimnames <- dimnames(mats[[1]])
+    if(!all(vapply(mats, function(m) identical(dimnames(m), ref.dimnames),
+                   logical(1)))) {
+      stop("Standardized replicate covariance names do not match across imputations for ",
+           type, ".", call.=FALSE)
+    }
+    Reduce(`+`, mats) / length(mats)
+  })
+  names(out) <- types
   out
 }
 
@@ -1059,6 +1175,8 @@ standardizedSolution <- function(object, ...) {
 parameterEstimates.lavaan.survey.mi <- function(object, se=TRUE, zstat=TRUE,
                                                 pvalue=TRUE, ci=TRUE,
                                                 standardized=FALSE,
+                                                standardized.se=c("lavaan",
+                                                                  "replicate"),
                                                 level=0.95, plabel=FALSE,
                                                 cov.std=TRUE,
                                                 remove.system.eq=TRUE,
@@ -1069,6 +1187,7 @@ parameterEstimates.lavaan.survey.mi <- function(object, se=TRUE, zstat=TRUE,
                                                 output=c("data.frame", "table"),
                                                 header=FALSE, ...) {
   output <- match.arg(output)
+  standardized.se <- match.arg(standardized.se)
   pt <- as.data.frame(lavaan::parTable(object$fits[[1]]),
                       stringsAsFactors=FALSE)
   ref.names <- names(object$coef)
@@ -1159,6 +1278,7 @@ parameterEstimates.lavaan.survey.mi <- function(object, se=TRUE, zstat=TRUE,
         zstat=FALSE,
         pvalue=FALSE,
         ci=FALSE,
+        standardized.se=standardized.se,
         level=level,
         cov.std=cov.std,
         remove.eq=remove.eq,
@@ -1179,6 +1299,8 @@ parameterEstimates.lavaan.survey.mi <- function(object, se=TRUE, zstat=TRUE,
 standardizedSolution.lavaan.survey.mi <- function(object, type="std.all",
                                                   se=TRUE, zstat=TRUE,
                                                   pvalue=TRUE, ci=TRUE,
+                                                  standardized.se=c("lavaan",
+                                                                    "replicate"),
                                                   level=0.95, cov.std=TRUE,
                                                   remove.eq=TRUE,
                                                   remove.ineq=TRUE,
@@ -1186,6 +1308,7 @@ standardizedSolution.lavaan.survey.mi <- function(object, type="std.all",
                                                   partable=NULL, GLIST=NULL,
                                                   est=NULL,
                                                   output="data.frame") {
+  standardized.se <- match.arg(standardized.se)
   if(!is.null(partable) || !is.null(GLIST) || !is.null(est)) {
     warning("`partable`, `GLIST`, and `est` are ignored for lavaan.survey.mi objects.",
             call.=FALSE)
@@ -1197,6 +1320,7 @@ standardizedSolution.lavaan.survey.mi <- function(object, type="std.all",
     zstat=zstat,
     pvalue=pvalue,
     ci=ci,
+    standardized.se=standardized.se,
     level=level,
     cov.std=cov.std,
     remove.eq=remove.eq,
@@ -1204,8 +1328,13 @@ standardizedSolution.lavaan.survey.mi <- function(object, type="std.all",
     remove.def=remove.def
   )
   attr(out, "standardized.type") <- type
-  attr(out, "se.method") <-
+  attr(out, "standardized.se") <- standardized.se
+  attr(out, "se.method") <- if(standardized.se == "replicate") {
+    "Rubin pooling with replicate-based standardized within-imputation variance"
+  }
+  else {
     "Rubin pooling of per-imputation lavaan standardized-solution SEs"
+  }
   if(identical(output, "table")) {
     class(out) <- c("lavaan.data.frame", "data.frame")
   }
@@ -1215,11 +1344,13 @@ standardizedSolution.lavaan.survey.mi <- function(object, type="std.all",
 lavaan.survey.mi.standardized.table <- function(object, type="std.all",
                                                 se=TRUE, zstat=TRUE,
                                                 pvalue=TRUE, ci=TRUE,
+                                                standardized.se="lavaan",
                                                 level=0.95, cov.std=TRUE,
                                                 remove.eq=TRUE,
                                                 remove.ineq=TRUE,
                                                 remove.def=FALSE) {
   need.se <- isTRUE(se) || isTRUE(zstat) || isTRUE(pvalue) || isTRUE(ci)
+  standardized.se <- match.arg(standardized.se, c("lavaan", "replicate"))
   std.list <- lapply(object$fits, function(fit) {
     lavaan::standardizedSolution(
       fit,
@@ -1254,27 +1385,41 @@ lavaan.survey.mi.standardized.table <- function(object, type="std.all",
   out <- ref
   out$est.std <- as.numeric(est.pooled)
 
-  if(need.se && all(vapply(std.list, function(x) "se" %in% names(x), logical(1)))) {
-    se.matrix <- do.call(rbind, lapply(std.list, function(x) x$se))
-    within.var <- colMeans(se.matrix^2, na.rm=TRUE)
-    within.var[!is.finite(within.var)] <- 0
-    if(length(std.list) > 1L) {
-      between.var <- apply(est.matrix, 2, stats::var, na.rm=TRUE)
+  if(need.se) {
+    if(standardized.se == "replicate") {
+      within.vcov <- object$standardized.vcov.within[[type]] %||% NULL
+      if(is.null(within.vcov)) {
+        stop("Replicate standardized SEs are not available for this object. ",
+             "Refit with standardized.se = \"replicate\" and ",
+             "within.variance = \"replicate\".", call.=FALSE)
+      }
+      within.vcov <- within.vcov[ref.key, ref.key, drop=FALSE]
     }
     else {
-      between.var <- rep(0, length(est.pooled))
+      if(!all(vapply(std.list, function(x) "se" %in% names(x), logical(1)))) {
+        stop("Per-imputation lavaan standardized SEs are not available.",
+             call.=FALSE)
+      }
+      se.matrix <- do.call(rbind, lapply(std.list, function(x) x$se))
+      within.var <- colMeans(se.matrix^2, na.rm=TRUE)
+      within.var[!is.finite(within.var)] <- 0
+      within.vcov <- diag(within.var, nrow=length(within.var))
+      dimnames(within.vcov) <- list(ref.key, ref.key)
     }
-    between.var[!is.finite(between.var)] <- 0
-    total.var <- within.var +
-      ((length(std.list) + 1) / length(std.list)) * between.var
+    if(length(std.list) > 1L) {
+      between.vcov <- stats::cov(est.matrix, use="pairwise.complete.obs")
+    }
+    else {
+      between.vcov <- matrix(0, nrow=length(est.pooled), ncol=length(est.pooled),
+                             dimnames=list(ref.key, ref.key))
+    }
+    between.vcov[!is.finite(between.vcov)] <- 0
+    dimnames(between.vcov) <- list(ref.key, ref.key)
+    total.vcov <- within.vcov +
+      ((length(std.list) + 1) / length(std.list)) * between.vcov
+    total.var <- diag(total.vcov)
     total.var[total.var < 0] <- NA_real_
     std.se <- sqrt(total.var)
-    total.vcov <- diag(total.var, nrow=length(total.var))
-    within.vcov <- diag(within.var, nrow=length(within.var))
-    between.vcov <- diag(between.var, nrow=length(between.var))
-    dimnames(total.vcov) <- list(ref.key, ref.key)
-    dimnames(within.vcov) <- list(ref.key, ref.key)
-    dimnames(between.vcov) <- list(ref.key, ref.key)
     df <- barnard.rubin.df(list(
       coef=stats::setNames(est.pooled, ref.key),
       vcov=total.vcov,
@@ -1340,6 +1485,7 @@ print.lavaan.survey.mi <- function(x, ...) {
   cat("  Parameter pooling: Rubin\n")
   cat("  Point WLS:", survey.info$point.wls %||% "unknown", "\n")
   cat("  Within variance:", survey.info$within.variance %||% "unknown", "\n")
+  cat("  Standardized SE:", survey.info$standardized.se %||% "lavaan", "\n")
   invisible(x)
 }
 
@@ -1486,6 +1632,7 @@ print.summary.lavaan.survey.mi <- function(x, digits=3, ...) {
     cat("MI pooling:      ", survey.info$mi.pooling %||% "unknown", "\n", sep="")
     cat("Point WLS:       ", survey.info$point.wls %||% "unknown", "\n", sep="")
     cat("Within variance: ", survey.info$within.variance %||% "unknown", "\n", sep="")
+    cat("Standardized SE: ", survey.info$standardized.se %||% "lavaan", "\n", sep="")
   }
   cat("Imputations:     ", m %||% NA_integer_, "\n", sep="")
   if(!is.null(df.complete)) {

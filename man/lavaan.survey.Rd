@@ -86,7 +86,8 @@ lavaan.survey(lavaan.fit, survey.design,
 	Additional arguments passed to \code{\link{lavaan.survey.ordinal}}
 	when the ordinal or mixed ordinal/continuous path is used. Useful
 	arguments include \code{rep.type}, \code{replicates},
-	\code{point.wls}, \code{mi.pooling}, and \code{within.variance}.
+	\code{point.wls}, \code{mi.pooling}, \code{within.variance}, and
+	\code{standardized.se}.
    }
 }
 \details{

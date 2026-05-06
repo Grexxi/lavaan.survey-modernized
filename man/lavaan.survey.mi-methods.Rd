@@ -18,17 +18,19 @@ standardizedSolution(object, ...)
 
 \method{parameterEstimates}{lavaan.survey.mi}(
   object, se = TRUE, zstat = TRUE, pvalue = TRUE, ci = TRUE,
-  standardized = FALSE, level = 0.95, plabel = FALSE,
-  cov.std = TRUE, remove.system.eq = TRUE, remove.eq = TRUE,
-  remove.ineq = TRUE, remove.def = FALSE, remove.nonfree = FALSE,
+  standardized = FALSE, standardized.se = c("lavaan", "replicate"),
+  level = 0.95, plabel = FALSE, cov.std = TRUE,
+  remove.system.eq = TRUE, remove.eq = TRUE, remove.ineq = TRUE,
+  remove.def = FALSE, remove.nonfree = FALSE,
   output = c("data.frame", "table"), header = FALSE, ...
 )
 
 \method{standardizedSolution}{lavaan.survey.mi}(
   object, type = "std.all", se = TRUE, zstat = TRUE, pvalue = TRUE,
-  ci = TRUE, level = 0.95, cov.std = TRUE, remove.eq = TRUE,
-  remove.ineq = TRUE, remove.def = FALSE, partable = NULL, GLIST = NULL,
-  est = NULL, output = "data.frame"
+  ci = TRUE, standardized.se = c("lavaan", "replicate"), level = 0.95,
+  cov.std = TRUE, remove.eq = TRUE, remove.ineq = TRUE,
+  remove.def = FALSE, partable = NULL, GLIST = NULL, est = NULL,
+  output = "data.frame"
 )
 
 \method{fitMeasures}{lavaan.survey.mi}(
@@ -50,6 +52,14 @@ standardizedSolution(object, ...)
   \item{standardized}{
     Logical. If \code{TRUE}, \code{parameterEstimates()} adds pooled
     \code{std.lv}, \code{std.all}, and \code{std.nox} columns.
+  }
+  \item{standardized.se}{
+    Standard-error method for pooled standardized solutions. The default
+    \code{"lavaan"} uses the per-imputation \pkg{lavaan}
+    standardized-solution standard errors as the within-imputation component.
+    The \code{"replicate"} option uses replicate-based standardized
+    within-imputation covariance matrices when the object was fitted with
+    \code{standardized.se = "replicate"}.
   }
   \item{type}{
     Standardization type for \code{standardizedSolution()}, such as
@@ -81,9 +91,10 @@ standardizedSolution(object, ...)
   \code{std.lv}, \code{std.all}, and \code{std.nox}.
   \code{standardizedSolution()} returns a data frame with pooled
   \code{est.std}; when requested, standard errors and tests are Rubin-pooled
-  from the per-imputation \pkg{lavaan} standardized-solution standard errors
-  and between-imputation variability. \code{fitMeasures()} returns a named
-  vector by default.
+  from either per-imputation \pkg{lavaan} standardized-solution standard
+  errors or replicate-based standardized within-imputation covariance
+  matrices, plus between-imputation variability. \code{fitMeasures()} returns
+  a named vector by default.
 }
 \details{
   \code{lavaan}'s \code{parameterEstimates()} and

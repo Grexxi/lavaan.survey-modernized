@@ -587,6 +587,7 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
       point.wls="lavaan",
       mi.pooling="parameters",
       within.variance="replicate",
+      standardized.se="replicate",
       verbose=TRUE
     )),
     message=function(m) {
@@ -609,11 +610,15 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
     lavaan.survey:::estimate.replicate.parameter.vcov,
     design=rep_design$designs,
     point.fit=per_imputation,
-    MoreArgs=list(lavaan.fit=fit, ordered=c("y1", "y2"), estimator="WLSMV")
+    MoreArgs=list(lavaan.fit=fit, ordered=c("y1", "y2"), estimator="WLSMV",
+                  standardized.types=c("std.lv", "std.all", "std.nox"))
   )
+  replicate.standardized.vcov <- lapply(replicate.vcov,
+                                        attr, "standardized.vcov")
   expected <- lavaan.survey:::pool.lavaan.mi.parameters(
     per_imputation,
-    vcov.list=replicate.vcov
+    vcov.list=replicate.vcov,
+    standardized.vcov.list=replicate.standardized.vcov
   )
   expect_error(
     lavaan.survey:::pool.lavaan.mi.parameters(
@@ -626,12 +631,17 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
   expect_s3_class(fit_pooled, "lavaan.survey.mi")
   survey_info <- attr(fit_pooled, "lavaan.survey.info")
   expect_equal(survey_info$within.variance, "replicate")
+  expect_equal(survey_info$standardized.se, "replicate")
   expect_equal(fit_pooled$df.complete,
                min(vapply(rep_design$designs, survey::degf, numeric(1))))
   expect_equal(coef(fit_pooled), coef(expected), tolerance=1e-10)
   expect_equal(vcov(fit_pooled), vcov(expected), tolerance=1e-10,
                check.attributes=FALSE)
   expect_true(all(diag(fit_pooled$vcov.within) >= 0))
+  expect_equal(fit_pooled$standardized.vcov.within$std.all,
+               expected$standardized.vcov.within$std.all,
+               tolerance=1e-10,
+               check.attributes=FALSE)
 
   summary_table <- capture.output(summary_out <- summary(fit_pooled))
   expect_true(length(summary_table) > 0)
@@ -686,6 +696,18 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
                     "ci.upper") %in% names(std_with_se)))
   expect_true(all(is.finite(std_with_se$est.std)))
 
+  std_replicate <- standardizedSolution(fit_pooled,
+                                        standardized.se="replicate")
+  expected_within <- fit_pooled$standardized.vcov.within$std.all
+  expected_between <- stats::cov(do.call(rbind, lapply(per_imputation_std,
+                                                       `[[`, "est.std")))
+  dimnames(expected_between) <- dimnames(expected_within)
+  expected_vcov <- expected_within +
+    ((fit_pooled$m + 1) / fit_pooled$m) * expected_between
+  expect_equal(std_replicate$se, sqrt(diag(expected_vcov)), tolerance=1e-10,
+               check.attributes=FALSE)
+  expect_equal(attr(std_replicate, "standardized.se"), "replicate")
+
   summary_std <- capture.output(summary_std_out <- summary(fit_pooled,
                                                            standardized=TRUE))
   expect_true(any(grepl("pooled std.all column shown", summary_std,
@@ -737,18 +759,24 @@ test_that("mixed MI defaults to the Mplus-nearer parameter-pooling path", {
   expect_equal(survey_info$mi.pooling, "parameters")
   expect_equal(survey_info$point.wls, "lavaan")
   expect_equal(survey_info$within.variance, "replicate")
+  expect_equal(survey_info$standardized.se, "lavaan")
   printed <- utils::capture.output(print(fit_default))
   expect_true(any(grepl("lavaan.survey.ordinal mode: mixed ordinal/continuous",
                         printed, fixed=TRUE)))
   expect_true(any(grepl("MI pooling: parameters", printed, fixed=TRUE)))
   expect_true(any(grepl("Point WLS: lavaan", printed, fixed=TRUE)))
   expect_true(any(grepl("Within variance: replicate", printed, fixed=TRUE)))
+  expect_true(any(grepl("Standardized SE: lavaan", printed, fixed=TRUE)))
   legacy <- fit_default
   attr(legacy, "lavaan.survey.info") <- NULL
   legacy$survey.info <- survey_info
   legacy_printed <- utils::capture.output(print(legacy))
   expect_true(any(grepl("MI pooling: parameters", legacy_printed, fixed=TRUE)))
   expect_true(all(is.finite(coef(fit_default))))
+  expect_error(
+    standardizedSolution(fit_default, standardized.se="replicate"),
+    "Replicate standardized SEs are not available"
+  )
 })
 
 test_that("lavaan.survey dispatches mixed models to the ordinal wrapper", {

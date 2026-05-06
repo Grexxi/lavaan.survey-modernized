@@ -32,6 +32,10 @@ endorsed by the original author/maintainer.
   `parameterEstimates(..., standardized = TRUE)` now adds `std.lv`,
   `std.all`, and `std.nox`, while `standardizedSolution()` returns
   Rubin-pooled standardized estimates.
+* Adds `standardized.se = c("lavaan", "replicate")` for mixed MI parameter
+  pooling. The default keeps standardized output fast; the replicate option
+  stores replicate-based standardized within-imputation covariance matrices for
+  stricter standardized-solution standard errors.
 
 ## Supported workflows
 

@@ -15,6 +15,7 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
                       mi.pooling = c("auto", "parameters", "sample.statistics"),
                       within.variance = c("auto", "replicate",
                                           "lavaan.robust", "naive"),
+                      standardized.se = c("lavaan", "replicate"),
                       verbose = interactive())
 }
 \arguments{
@@ -77,6 +78,17 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
     cluster-robust fast path, but current lavaan versions do not support
     clustered estimation together with ordered/categorical indicators, so this
     option currently stops with an informative error.
+  }
+  \item{standardized.se}{
+    Standard-error method used later by
+    \code{\link{standardizedSolution}} for \code{lavaan.survey.mi} objects.
+    The default \code{"lavaan"} is fast and uses the per-imputation
+    \pkg{lavaan} standardized-solution standard errors as the
+    within-imputation component. The \code{"replicate"} option is available
+    when \code{mi.pooling = "parameters"} and
+    \code{within.variance = "replicate"}; it collects standardized estimates
+    from the replicate-weight fits and stores replicate-based standardized
+    within-imputation covariance matrices.
   }
   \item{verbose}{
     Logical. If \code{TRUE}, prints progress messages while fitting
