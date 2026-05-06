@@ -1420,29 +1420,62 @@ parameterEstimates.lavaan.survey.mi <- function(object, se=TRUE, zstat=TRUE,
   out <- out[keep, , drop=FALSE]
 
   if(isTRUE(standardized)) {
-    for(type in c("std.lv", "std.all", "std.nox")) {
-      std <- lavaan.survey.mi.standardized.table(
+    out <- cbind(
+      out,
+      lavaan.survey.mi.pooled.parameter.standardization(
         object=object,
-        type=type,
-        se=FALSE,
-        zstat=FALSE,
-        pvalue=FALSE,
-        ci=FALSE,
-        standardized.se=standardized.se,
-        level=level,
+        template=out,
         cov.std=cov.std,
+        remove.system.eq=remove.system.eq,
         remove.eq=remove.eq,
         remove.ineq=remove.ineq,
         remove.def=remove.def
       )
-      out[[type]] <- std$est.std[lavaan.survey.mi.match.parameter.rows(out, std)]
-    }
+    )
   }
 
   if(identical(output, "table")) {
     class(out) <- c("lavaan.data.frame", "data.frame")
   }
   out
+}
+
+lavaan.survey.mi.pooled.parameter.standardization <- function(object, template,
+                                                              cov.std=TRUE,
+                                                              remove.system.eq=TRUE,
+                                                              remove.eq=TRUE,
+                                                              remove.ineq=TRUE,
+                                                              remove.def=FALSE) {
+  std.cols <- c("std.lv", "std.all", "std.nox")
+  std.tables <- lapply(object$fits, function(fit) {
+    out <- as.data.frame(lavaan::parameterEstimates(
+      fit,
+      se=FALSE,
+      zstat=FALSE,
+      pvalue=FALSE,
+      ci=FALSE,
+      standardized=TRUE,
+      cov.std=cov.std,
+      remove.system.eq=remove.system.eq,
+      remove.eq=remove.eq,
+      remove.ineq=remove.ineq,
+      remove.def=remove.def
+    ), stringsAsFactors=FALSE)
+    for(col in setdiff(std.cols, names(out))) out[[col]] <- NA_real_
+    out
+  })
+
+  out <- lapply(std.cols, function(col) {
+    values <- lapply(std.tables, function(tab) {
+      tab[[col]][lavaan.survey.mi.match.parameter.rows(template, tab)]
+    })
+    values <- do.call(cbind, values)
+    pooled <- rowMeans(values, na.rm=TRUE)
+    pooled[rowSums(!is.na(values)) == 0L] <- NA_real_
+    pooled
+  })
+  names(out) <- std.cols
+  as.data.frame(out, check.names=FALSE)
 }
 
 standardizedSolution.lavaan.survey.mi <- function(object, type="std.all",
