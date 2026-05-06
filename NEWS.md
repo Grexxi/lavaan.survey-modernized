@@ -25,6 +25,9 @@ endorsed by the original author/maintainer.
 * Improves `summary()` output for Rubin-pooled `lavaan.survey.mi` objects
   with a compact model header, pooled fit
   measures, fixed-width aligned columns, and block-formatted parameter tables.
+  The summary method now follows the usual R convention: direct interactive
+  calls print the formatted summary, while assigned calls return the summary
+  table without printing.
 * Adds extractor support for Rubin-pooled MI fits:
   `parameterEstimates()` returns pooled estimates with Barnard-Rubin degrees
   of freedom, and `fitMeasures()` returns pooled fit-measure averages.

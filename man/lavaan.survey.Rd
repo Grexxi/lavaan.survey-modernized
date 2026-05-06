@@ -142,8 +142,11 @@ lavaan.survey(lavaan.fit, survey.design,
 	an object of class \code{lavaan.survey.mi}; its summary method reports
 	Barnard-Rubin degrees of freedom for Rubin-pooled parameter tests when
 	complete-data survey design degrees of freedom are available. The returned
-	data frame contains columns \code{Estimate}, \code{Std.Err},
-	\code{t.value}, \code{df}, and \code{P.value}.}
+	data frame includes parameter identifiers \code{lhs}, \code{op}, and
+	\code{rhs}, plus \code{Estimate}, \code{Std.Err}, \code{t.value},
+	\code{df}, and \code{P.value}. With \code{ci = TRUE},
+	\code{ci.lower} and \code{ci.upper} are added; with
+	\code{standardized = TRUE}, \code{Std.all} is added.}
 \references{
 Asparouhov T (2005). Sampling Weights in Latent Variable Modeling. Structural 
   Equation Modeling, 12(3), 411-434.

@@ -1602,14 +1602,14 @@ lavaan.survey.mi.standardized.table <- function(object, type="std.all",
     total.var <- diag(total.vcov)
     total.var[total.var < 0] <- NA_real_
     std.se <- sqrt(total.var)
-    df <- barnard.rubin.df(list(
+    df <- barnard.rubin.df.from.components(
       coef=stats::setNames(est.pooled, ref.key),
       vcov=total.vcov,
       vcov.within=within.vcov,
       vcov.between=between.vcov,
       m=object$m,
       df.complete=object$df.complete
-    ))
+    )
 
     if(isTRUE(se)) {
       out$se <- std.se
@@ -1708,8 +1708,7 @@ summary.lavaan.survey.mi <- function(object, fit.measures=TRUE,
   attr(out, "level") <- level
   attr(out, "standardized.requested") <- isTRUE(standardized)
   class(out) <- c("summary.lavaan.survey.mi", "data.frame")
-  print(out)
-  invisible(out)
+  out
 }
 
 lavaan.survey.mi.parameter.table <- function(object, ci=FALSE, level=0.95,
@@ -1941,18 +1940,33 @@ print.summary.lavaan.survey.mi <- function(x, digits=3, ...) {
 }
 
 barnard.rubin.df <- function(object) {
-  npar <- length(object$coef)
-  ref.names <- names(object$coef)
-  if(is.null(object$vcov.within) || is.null(object$vcov.between) ||
-     is.null(object$vcov) || is.null(object$m) || object$m <= 1L) {
-    out <- rep(object$df.complete %||% Inf, npar)
+  barnard.rubin.df.from.components(
+    coef=object$coef,
+    vcov=object$vcov,
+    vcov.within=object$vcov.within,
+    vcov.between=object$vcov.between,
+    m=object$m,
+    df.complete=object$df.complete
+  )
+}
+
+barnard.rubin.df.from.components <- function(coef, vcov, vcov.within=NULL,
+                                             vcov.between=NULL, m=NULL,
+                                             df.complete=NULL) {
+  npar <- length(coef)
+  ref.names <- names(coef)
+  if(is.null(ref.names)) {
+    ref.names <- rownames(vcov) %||% seq_len(npar)
+  }
+  if(is.null(vcov.within) || is.null(vcov.between) ||
+     is.null(vcov) || is.null(m) || m <= 1L) {
+    out <- rep(df.complete %||% Inf, npar)
     names(out) <- ref.names
     return(out)
   }
 
-  m <- object$m
-  total.var <- diag(object$vcov)
-  between.var <- diag(object$vcov.between)
+  total.var <- diag(vcov)
+  between.var <- diag(vcov.between)
   lambda <- ((m + 1) / m) * between.var / total.var
   lambda[!is.finite(lambda)] <- NA_real_
   lambda <- pmin(pmax(lambda, 0), 1)
@@ -1961,7 +1975,7 @@ barnard.rubin.df <- function(object) {
   has.missing.info <- !is.na(lambda) & lambda > .Machine$double.eps
   df.old[has.missing.info] <- (m - 1) / (lambda[has.missing.info]^2)
 
-  df.complete <- object$df.complete %||% Inf
+  df.complete <- df.complete %||% Inf
   if(is.finite(df.complete)) {
     df.obs <- ((df.complete + 1) / (df.complete + 3)) *
       df.complete * (1 - lambda)

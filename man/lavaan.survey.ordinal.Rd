@@ -129,7 +129,9 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
   available. The printed summary is organized by parameter block and includes
   pooled fit-measure averages when requested. The returned data frame contains
   columns \code{lhs}, \code{op}, \code{rhs}, \code{Estimate}, \code{Std.Err},
-  \code{t.value}, \code{df}, and \code{P.value}.
+  \code{t.value}, \code{df}, and \code{P.value}. With \code{ci = TRUE},
+  \code{ci.lower} and \code{ci.upper} are added; with
+  \code{standardized = TRUE}, \code{Std.all} is added.
 }
 \seealso{
   \code{\link{lavaan.survey}},

@@ -104,7 +104,12 @@ standardizedSolution(object, ...)
   \code{standardizedSolution()} are not S3 generics. This package therefore
   exports small delegating wrappers: ordinary \code{lavaan} objects are passed
   through to \pkg{lavaan}, while \code{lavaan.survey.mi} objects receive
-  Rubin-pooled estimates and Barnard-Rubin degrees of freedom.
+  Rubin-pooled estimates and Barnard-Rubin degrees of freedom. For
+  \code{lavaan.survey.mi} objects, use the unqualified
+  \code{parameterEstimates()} and \code{standardizedSolution()} functions after
+  loading \pkg{lavaan.survey}; fully qualified calls such as
+  \code{lavaan::parameterEstimates()} dispatch to \pkg{lavaan}'s original
+  implementation and do not know about \code{lavaan.survey.mi} objects.
 }
 \seealso{
   \code{\link{lavaan.survey.ordinal}},
