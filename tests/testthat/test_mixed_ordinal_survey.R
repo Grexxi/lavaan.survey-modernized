@@ -635,8 +635,17 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
 
   summary_table <- capture.output(summary_out <- summary(fit_pooled))
   expect_true(length(summary_table) > 0)
+  expect_true(any(grepl("lavaan.survey MI Summary", summary_table,
+                        fixed=TRUE)))
+  expect_true(any(grepl("Pooled Fit Measures", summary_table,
+                        fixed=TRUE)))
+  expect_true(any(grepl("Latent Variables", summary_table,
+                        fixed=TRUE)))
+  expect_true(any(grepl("P(>|t|)", summary_table,
+                        fixed=TRUE)))
   expect_true(all(c("Estimate", "Std.Err", "t.value", "df", "P.value") %in%
                     names(summary_out)))
+  expect_true(all(c("lhs", "op", "rhs") %in% names(summary_out)))
   expect_false("z.value" %in% names(summary_out))
   expected_df <- lavaan.survey:::barnard.rubin.df(fit_pooled)
   expected_p <- 2 * stats::pt(abs(summary_out$t.value),

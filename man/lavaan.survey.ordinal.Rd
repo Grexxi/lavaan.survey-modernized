@@ -114,8 +114,10 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
   \code{vcov}, \code{print}, and \code{summary} methods is returned. The
   summary method reports Rubin-pooled standard errors with Barnard-Rubin
   degrees of freedom when complete-data survey design degrees of freedom are
-  available. The returned data frame contains columns \code{Estimate},
-  \code{Std.Err}, \code{t.value}, \code{df}, and \code{P.value}.
+  available. The printed summary is organized by parameter block and includes
+  pooled fit-measure averages when requested. The returned data frame contains
+  columns \code{lhs}, \code{op}, \code{rhs}, \code{Estimate}, \code{Std.Err},
+  \code{t.value}, \code{df}, and \code{P.value}.
 }
 \seealso{
   \code{\link{lavaan.survey}},

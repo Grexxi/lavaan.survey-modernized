@@ -18,6 +18,7 @@ importFrom("stats",
            median)
 S3method(coef,lavaan.survey.mi)
 S3method(print,lavaan.survey.mi)
+S3method(print,summary.lavaan.survey.mi)
 S3method(summary,lavaan.survey.mi)
 S3method(vcov,lavaan.survey.mi)
 export("lavaan.survey")

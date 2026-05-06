@@ -22,6 +22,9 @@ endorsed by the original author/maintainer.
   continuous models report per-imputation sample-statistic computation, while
   mixed ordinal/continuous parameter-pooling models also report
   per-imputation model fits and replicate-weight refits.
+* Improves `summary()` output for Rubin-pooled `lavaan.survey.mi` objects
+  with a compact model header, pooled fit
+  measures, and block-formatted parameter tables.
 
 ## Supported workflows
 

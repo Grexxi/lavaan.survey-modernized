@@ -1013,8 +1013,9 @@ vcov.lavaan.survey.mi <- function(object, ...) {
 }
 
 print.lavaan.survey.mi <- function(x, ...) {
-  cat("lavaan.survey multiply imputed ordinal survey fit\n")
   survey.info <- get.ordinal.survey.info(x)
+  mode <- if(!is.null(survey.info)) survey.info$mode %||% "survey SEM" else "survey SEM"
+  cat("lavaan.survey multiply imputed ", mode, " fit\n", sep="")
   if(!is.null(survey.info)) {
     cat(paste0("  ", format.ordinal.survey.info(survey.info)), sep="\n")
     cat("\n")
@@ -1026,7 +1027,23 @@ print.lavaan.survey.mi <- function(x, ...) {
   invisible(x)
 }
 
-summary.lavaan.survey.mi <- function(object, ...) {
+summary.lavaan.survey.mi <- function(object, fit.measures=TRUE,
+                                     standardized=FALSE, ci=FALSE,
+                                     level=0.95, ...) {
+  out <- lavaan.survey.mi.parameter.table(object, ci=ci, level=level)
+  attr(out, "fit.measures") <- if(isTRUE(fit.measures)) object$fit.measures else numeric(0)
+  attr(out, "survey.info") <- get.ordinal.survey.info(object)
+  attr(out, "m") <- object$m
+  attr(out, "df.complete") <- object$df.complete
+  attr(out, "ci") <- isTRUE(ci)
+  attr(out, "level") <- level
+  attr(out, "standardized.requested") <- isTRUE(standardized)
+  class(out) <- c("summary.lavaan.survey.mi", "data.frame")
+  print(out)
+  invisible(out)
+}
+
+lavaan.survey.mi.parameter.table <- function(object, ci=FALSE, level=0.95) {
   se <- sqrt(diag(object$vcov))
   t.value <- object$coef / se
   df <- barnard.rubin.df(object)
@@ -1034,18 +1051,162 @@ summary.lavaan.survey.mi <- function(object, ...) {
   normal.ref <- is.infinite(df)
   p[normal.ref] <- 2 * stats::pnorm(abs(t.value[normal.ref]),
                                     lower.tail=FALSE)
-  out <- data.frame(Estimate=object$coef,
+  parsed <- parse.lavaan.parameter.names(names(object$coef))
+  out <- data.frame(lhs=parsed$lhs,
+                    op=parsed$op,
+                    rhs=parsed$rhs,
+                    Estimate=object$coef,
                     Std.Err=se,
                     t.value=t.value,
                     df=df,
                     P.value=p,
                     check.names=FALSE)
-  print(out)
-  if(length(object$fit.measures)) {
-    cat("\nPooled fit-measure averages:\n")
-    print(object$fit.measures)
+  if(isTRUE(ci)) {
+    alpha <- 1 - level
+    crit <- stats::qt(1 - alpha / 2, df=df)
+    normal.ref <- is.infinite(df)
+    crit[normal.ref] <- stats::qnorm(1 - alpha / 2)
+    out$ci.lower <- out$Estimate - crit * out$Std.Err
+    out$ci.upper <- out$Estimate + crit * out$Std.Err
   }
-  invisible(out)
+  rownames(out) <- names(object$coef)
+  out
+}
+
+parse.lavaan.parameter.names <- function(x) {
+  out <- data.frame(lhs=x, op="", rhs="", stringsAsFactors=FALSE)
+  for(i in seq_along(x)) {
+    nm <- x[[i]]
+    if(grepl("~1$", nm)) {
+      out$lhs[[i]] <- sub("~1$", "", nm)
+      out$op[[i]] <- "~1"
+      out$rhs[[i]] <- ""
+    }
+    else if(grepl("=~", nm, fixed=TRUE)) {
+      parts <- strsplit(nm, "=~", fixed=TRUE)[[1]]
+      out$lhs[[i]] <- parts[[1]]
+      out$op[[i]] <- "=~"
+      out$rhs[[i]] <- parts[[2]]
+    }
+    else if(grepl("~~", nm, fixed=TRUE)) {
+      parts <- strsplit(nm, "~~", fixed=TRUE)[[1]]
+      out$lhs[[i]] <- parts[[1]]
+      out$op[[i]] <- "~~"
+      out$rhs[[i]] <- parts[[2]]
+    }
+    else if(grepl("|", nm, fixed=TRUE)) {
+      parts <- strsplit(nm, "|", fixed=TRUE)[[1]]
+      out$lhs[[i]] <- parts[[1]]
+      out$op[[i]] <- "|"
+      out$rhs[[i]] <- parts[[2]]
+    }
+    else if(grepl("~", nm, fixed=TRUE)) {
+      parts <- strsplit(nm, "~", fixed=TRUE)[[1]]
+      out$lhs[[i]] <- parts[[1]]
+      out$op[[i]] <- "~"
+      out$rhs[[i]] <- parts[[2]]
+    }
+  }
+  out
+}
+
+lavaan.survey.mi.parameter.blocks <- function(x) {
+  ifelse(x$op == "=~", "Latent Variables",
+         ifelse(x$op == "~", "Regressions",
+                ifelse(x$op == "~~" & x$lhs == x$rhs, "Variances",
+                       ifelse(x$op == "~~", "Covariances",
+                              ifelse(x$op == "|", "Thresholds",
+                                     ifelse(x$op == "~1", "Intercepts", "Other"))))))
+}
+
+format.mi.number <- function(x, digits=3) {
+  out <- formatC(x, format="f", digits=digits)
+  out[is.na(x)] <- ""
+  out
+}
+
+format.mi.df <- function(x, digits=2) {
+  out <- formatC(x, format="f", digits=digits)
+  out[is.infinite(x)] <- "Inf"
+  out[is.na(x)] <- ""
+  out
+}
+
+format.mi.p <- function(x) {
+  out <- ifelse(is.na(x), "",
+                ifelse(x < .001, "<.001",
+                       sub("^0", "", formatC(x, format="f", digits=3))))
+  out
+}
+
+print.summary.lavaan.survey.mi <- function(x, digits=3, ...) {
+  survey.info <- attr(x, "survey.info")
+  fit.measures <- attr(x, "fit.measures")
+  m <- attr(x, "m")
+  df.complete <- attr(x, "df.complete")
+  ci <- isTRUE(attr(x, "ci"))
+  level <- attr(x, "level") %||% 0.95
+  standardized.requested <- isTRUE(attr(x, "standardized.requested"))
+
+  cat("\nlavaan.survey MI Summary\n")
+  cat(strrep("=", 72), "\n", sep="")
+  if(!is.null(survey.info)) {
+    cat("Mode:            ", survey.info$mode %||% "unknown", "\n", sep="")
+    cat("Estimator:       ", survey.info$estimator %||% "unknown", "\n", sep="")
+    cat("MI pooling:      ", survey.info$mi.pooling %||% "unknown", "\n", sep="")
+    cat("Point WLS:       ", survey.info$point.wls %||% "unknown", "\n", sep="")
+    cat("Within variance: ", survey.info$within.variance %||% "unknown", "\n", sep="")
+  }
+  cat("Imputations:     ", m %||% NA_integer_, "\n", sep="")
+  if(!is.null(df.complete)) {
+    cat("Survey df:       ", format.mi.df(df.complete), "\n", sep="")
+  }
+  cat("Tests:           t statistics with Barnard-Rubin degrees of freedom\n")
+  if(standardized.requested) {
+    cat("Standardized:    not yet pooled; unstandardized estimates shown\n")
+  }
+
+  if(length(fit.measures)) {
+    cat("\nPooled Fit Measures (averaged over imputations)\n")
+    fit.order <- c("chisq.scaled", "df.scaled", "cfi.scaled",
+                   "rmsea.scaled", "srmr", "chisq", "df", "cfi", "rmsea")
+    fit.names <- intersect(fit.order, names(fit.measures))
+    fit.out <- data.frame(
+      Measure=fit.names,
+      Value=format.mi.number(fit.measures[fit.names], digits=3),
+      row.names=NULL,
+      check.names=FALSE
+    )
+    print(fit.out, row.names=FALSE, right=FALSE)
+  }
+
+  blocks <- lavaan.survey.mi.parameter.blocks(x)
+  block.order <- c("Latent Variables", "Regressions", "Covariances",
+                   "Intercepts", "Thresholds", "Variances", "Other")
+  for(block in block.order[block.order %in% blocks]) {
+    cat("\n", block, "\n", sep="")
+    cat(strrep("-", nchar(block)), "\n", sep="")
+    rows <- x[blocks == block, , drop=FALSE]
+    out <- data.frame(
+      lhs=rows$lhs,
+      op=rows$op,
+      rhs=rows$rhs,
+      Estimate=format.mi.number(rows$Estimate, digits=digits),
+      Std.Err=format.mi.number(rows$Std.Err, digits=digits),
+      t=format.mi.number(rows$t.value, digits=digits),
+      df=format.mi.df(rows$df),
+      `P(>|t|)`=format.mi.p(rows$P.value),
+      check.names=FALSE
+    )
+    if(ci) {
+      out[[paste0("ci.lower.", round(100 * level))]] <-
+        format.mi.number(rows$ci.lower, digits=digits)
+      out[[paste0("ci.upper.", round(100 * level))]] <-
+        format.mi.number(rows$ci.upper, digits=digits)
+    }
+    print(out, row.names=FALSE, right=FALSE)
+  }
+  invisible(x)
 }
 
 barnard.rubin.df <- function(object) {
