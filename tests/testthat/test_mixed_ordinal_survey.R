@@ -578,14 +578,25 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
   )
   fit <- fit_mixed_indicator_model(imputed_data[[1]])
 
-  fit_pooled <- suppressWarnings(lavaan.survey.ordinal(
-    lavaan.fit=fit,
-    survey.design=rep_design,
-    estimator="WLSMV",
-    point.wls="lavaan",
-    mi.pooling="parameters",
-    within.variance="replicate"
-  ))
+  progress_messages <- character()
+  fit_pooled <- withCallingHandlers(
+    suppressWarnings(lavaan.survey.ordinal(
+      lavaan.fit=fit,
+      survey.design=rep_design,
+      estimator="WLSMV",
+      point.wls="lavaan",
+      mi.pooling="parameters",
+      within.variance="replicate",
+      verbose=TRUE
+    )),
+    message=function(m) {
+      progress_messages <<- c(progress_messages, conditionMessage(m))
+      invokeRestart("muffleMessage")
+    }
+  )
+  expect_true(any(grepl("Replicate fits for imputation 1/3: 1/4",
+                        progress_messages,
+                        fixed=TRUE)))
   per_imputation <- lapply(rep_design$designs, function(design_i) {
     suppressWarnings(lavaan.survey:::fit.ordinal.weighted.lavaan(
       design=design_i,

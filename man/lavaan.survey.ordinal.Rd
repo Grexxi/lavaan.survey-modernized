@@ -14,7 +14,8 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
                       point.wls = c("auto", "lavaan", "design"),
                       mi.pooling = c("auto", "parameters", "sample.statistics"),
                       within.variance = c("auto", "replicate",
-                                          "lavaan.robust", "naive"))
+                                          "lavaan.robust", "naive"),
+                      verbose = interactive())
 }
 \arguments{
   \item{lavaan.fit}{
@@ -77,6 +78,12 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
     clustered estimation together with ordered/categorical indicators, so this
     option currently stops with an informative error.
   }
+  \item{verbose}{
+    Logical. If \code{TRUE}, prints progress messages while fitting
+    per-imputation models and replicate-weight refits in the
+    \code{mi.pooling = "parameters"} path. The default is
+    \code{\link{interactive}()}.
+  }
 }
 \details{
   This function is an initial ordinal implementation. It supports single-group
@@ -95,7 +102,9 @@ lavaan.survey.ordinal(lavaan.fit, survey.design, ordered = NULL,
   options keep the original design-based pooled-statistic implementation
   available for sensitivity checks. The selected mode, MI pooling strategy,
   point WLS strategy, and within-imputation variance strategy are printed when
-  relevant and stored as \code{attr(fit, "lavaan.survey.info")}.
+  relevant and stored as \code{attr(fit, "lavaan.survey.info")}. With
+  \code{verbose = TRUE}, long mixed-MI runs also print progress such as
+  \code{Replicate fits for imputation 1/5: 3/20}.
 }
 \value{
   An object of class \code{\linkS4class{lavaan}} for
