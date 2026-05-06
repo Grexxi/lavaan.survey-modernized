@@ -1012,6 +1012,146 @@ vcov.lavaan.survey.mi <- function(object, ...) {
   object$vcov
 }
 
+fitMeasures.lavaan.survey.mi <- function(object, fit.measures="all",
+                                         baseline.model=NULL,
+                                         h1.model=NULL, fm.args=list(),
+                                         output=c("vector", "data.frame",
+                                                  "list"),
+                                         ...) {
+  output <- match.arg(output)
+  available <- object$fit.measures %||% numeric(0)
+  if(length(fit.measures) == 1L && identical(tolower(fit.measures), "all")) {
+    out <- available
+  }
+  else {
+    out <- available[fit.measures]
+    missing <- setdiff(fit.measures, names(available))
+    if(length(missing)) {
+      out[missing] <- NA_real_
+      out <- out[fit.measures]
+    }
+  }
+
+  if(output == "list") {
+    return(as.list(out))
+  }
+  if(output == "data.frame") {
+    return(data.frame(measure=names(out), value=as.numeric(out),
+                      row.names=NULL, check.names=FALSE))
+  }
+  out
+}
+
+parameterEstimates <- function(object, ...) {
+  if(inherits(object, "lavaan.survey.mi")) {
+    return(parameterEstimates.lavaan.survey.mi(object, ...))
+  }
+  lavaan::parameterEstimates(object, ...)
+}
+
+parameterEstimates.lavaan.survey.mi <- function(object, se=TRUE, zstat=TRUE,
+                                                pvalue=TRUE, ci=TRUE,
+                                                standardized=FALSE,
+                                                level=0.95, plabel=FALSE,
+                                                remove.system.eq=TRUE,
+                                                remove.eq=TRUE,
+                                                remove.ineq=TRUE,
+                                                remove.def=FALSE,
+                                                remove.nonfree=FALSE,
+                                                output=c("data.frame", "table"),
+                                                header=FALSE, ...) {
+  output <- match.arg(output)
+  if(isTRUE(standardized)) {
+    message("Standardized estimates are not yet pooled for lavaan.survey.mi; reporting unstandardized estimates.")
+  }
+
+  pt <- as.data.frame(lavaan::parTable(object$fits[[1]]),
+                      stringsAsFactors=FALSE)
+  ref.names <- names(object$coef)
+  free.order <- unique(pt$free[pt$free > 0L])
+  if(length(free.order) != length(ref.names)) {
+    stop("Could not align pooled free parameters with the lavaan parameter table.",
+         call.=FALSE)
+  }
+  free.map <- seq_along(free.order)
+  names(free.map) <- as.character(free.order)
+  free.idx <- ifelse(pt$free > 0L, free.map[as.character(pt$free)], NA_integer_)
+
+  est <- pt$est
+  has.free <- !is.na(free.idx)
+  est[has.free] <- object$coef[free.idx[has.free]]
+
+  out <- data.frame(lhs=pt$lhs,
+                    op=pt$op,
+                    rhs=pt$rhs,
+                    stringsAsFactors=FALSE,
+                    check.names=FALSE)
+  if("block" %in% names(pt)) out$block <- pt$block
+  if("group" %in% names(pt)) out$group <- pt$group
+  if("label" %in% names(pt) && any(nchar(pt$label) > 0L)) out$label <- pt$label
+  if(isTRUE(plabel) && "plabel" %in% names(pt)) out$plabel <- pt$plabel
+  out$est <- est
+
+  df <- barnard.rubin.df(object)
+  if(isTRUE(se)) {
+    se.out <- rep(0, nrow(pt))
+    se.out[has.free] <- sqrt(diag(object$vcov))[free.idx[has.free]]
+    out$se <- se.out
+
+    if(isTRUE(zstat)) {
+      t.out <- rep(NA_real_, nrow(pt))
+      t.out[has.free] <- out$est[has.free] / out$se[has.free]
+      out$t <- t.out
+      df.out <- rep(NA_real_, nrow(pt))
+      df.out[has.free] <- df[free.idx[has.free]]
+      out$df <- df.out
+
+      if(isTRUE(pvalue)) {
+        p.out <- rep(NA_real_, nrow(pt))
+        p.out[has.free] <- 2 * stats::pt(abs(t.out[has.free]),
+                                          df=df.out[has.free],
+                                          lower.tail=FALSE)
+        normal.ref <- has.free & is.infinite(df.out)
+        p.out[normal.ref] <- 2 * stats::pnorm(abs(t.out[normal.ref]),
+                                              lower.tail=FALSE)
+        out$pvalue <- p.out
+      }
+    }
+
+    if(isTRUE(ci)) {
+      ci.lower <- ci.upper <- rep(NA_real_, nrow(pt))
+      alpha <- 1 - level
+      df.out <- rep(NA_real_, nrow(pt))
+      df.out[has.free] <- df[free.idx[has.free]]
+      crit <- stats::qt(1 - alpha / 2, df=df.out)
+      normal.ref <- is.infinite(df.out)
+      crit[normal.ref] <- stats::qnorm(1 - alpha / 2)
+      ci.lower[has.free] <- out$est[has.free] - crit[has.free] * out$se[has.free]
+      ci.upper[has.free] <- out$est[has.free] + crit[has.free] * out$se[has.free]
+      fixed <- !has.free
+      ci.lower[fixed] <- out$est[fixed]
+      ci.upper[fixed] <- out$est[fixed]
+      out$ci.lower <- ci.lower
+      out$ci.upper <- ci.upper
+    }
+  }
+
+  keep <- rep(TRUE, nrow(out))
+  if(isTRUE(remove.system.eq)) keep <- keep & !(out$op == "==" & (pt$user %||% 0L) != 1L)
+  if(isTRUE(remove.eq)) keep <- keep & out$op != "=="
+  if(isTRUE(remove.ineq)) keep <- keep & !out$op %in% c("<", ">")
+  if(isTRUE(remove.def)) keep <- keep & out$op != ":="
+  if(isTRUE(remove.nonfree)) {
+    keep <- keep & !(pt$free == 0L & !out$op %in% c("==", ">", "<", ":="))
+  }
+  out <- out[keep, , drop=FALSE]
+
+  if(identical(output, "table")) {
+    class(out) <- c("lavaan.data.frame", "data.frame")
+  }
+  out
+}
+
 print.lavaan.survey.mi <- function(x, ...) {
   survey.info <- get.ordinal.survey.info(x)
   mode <- if(!is.null(survey.info)) survey.info$mode %||% "survey SEM" else "survey SEM"

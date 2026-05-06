@@ -657,6 +657,24 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
   expect_equal(summary_out$df, expected_df, tolerance=1e-10,
                check.attributes=FALSE)
   expect_equal(summary_out$P.value, expected_p, tolerance=1e-10)
+
+  pe <- parameterEstimates(fit_pooled, remove.nonfree=TRUE)
+  expect_true(all(c("lhs", "op", "rhs", "est", "se", "t", "df",
+                    "pvalue") %in% names(pe)))
+  expect_equal(pe$est, as.numeric(coef(fit_pooled)), tolerance=1e-10,
+               check.attributes=FALSE)
+  expect_equal(pe$df, expected_df, tolerance=1e-10,
+               check.attributes=FALSE)
+  expect_equal(pe$pvalue, expected_p, tolerance=1e-10)
+
+  fm <- fitMeasures(fit_pooled, c("cfi.scaled", "rmsea.scaled"))
+  expect_equal(fm,
+               fit_pooled$fit.measures[c("cfi.scaled", "rmsea.scaled")],
+               check.attributes=FALSE)
+  fm.df <- fitMeasures(fit_pooled, c("cfi.scaled", "rmsea.scaled"),
+                       output="data.frame")
+  expect_equal(fm.df$measure, c("cfi.scaled", "rmsea.scaled"))
+  expect_equal(fm.df$value, as.numeric(fm), check.attributes=FALSE)
 })
 
 test_that("mixed MI defaults to the Mplus-nearer parameter-pooling path", {
