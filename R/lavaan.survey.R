@@ -1767,6 +1767,45 @@ format.mi.p <- function(x) {
   out
 }
 
+format.mi.table.cell <- function(x, width, align="left") {
+  x <- as.character(x)
+  x[is.na(x)] <- ""
+  pad <- pmax(0L, width - nchar(x, type="width", allowNA=FALSE))
+  if(align == "right") {
+    return(paste0(strrep(" ", pad), x))
+  }
+  if(align == "center") {
+    left <- floor(pad / 2)
+    right <- pad - left
+    return(paste0(strrep(" ", left), x, strrep(" ", right)))
+  }
+  paste0(x, strrep(" ", pad))
+}
+
+print.mi.table <- function(x, align=NULL, spacing=2L) {
+  x <- as.data.frame(x, stringsAsFactors=FALSE, check.names=FALSE)
+  if(nrow(x) == 0L || ncol(x) == 0L) return(invisible(x))
+  x[] <- lapply(x, as.character)
+  if(is.null(align)) {
+    align <- rep("left", ncol(x))
+    names(align) <- names(x)
+  }
+  align <- align[names(x)]
+  align[is.na(align)] <- "left"
+  widths <- vapply(seq_along(x), function(i) {
+    max(nchar(c(names(x)[[i]], x[[i]]), type="width", allowNA=FALSE))
+  }, integer(1))
+
+  rows <- rbind(names(x), as.matrix(x))
+  formatted <- do.call(cbind, lapply(seq_along(x), function(i) {
+    format.mi.table.cell(rows[, i], widths[[i]], align[[i]])
+  }))
+  line.sep <- strrep(" ", spacing)
+  cat(apply(formatted, 1L, paste, collapse=line.sep), sep="\n")
+  cat("\n")
+  invisible(x)
+}
+
 print.summary.lavaan.survey.mi <- function(x, digits=3, ...) {
   survey.info <- attr(x, "survey.info")
   fit.measures <- attr(x, "fit.measures")
@@ -1806,7 +1845,7 @@ print.summary.lavaan.survey.mi <- function(x, digits=3, ...) {
       row.names=NULL,
       check.names=FALSE
     )
-    print(fit.out, row.names=FALSE, right=FALSE)
+    print.mi.table(fit.out, align=c(Measure="left", Value="right"))
   }
 
   blocks <- lavaan.survey.mi.parameter.blocks(x)
@@ -1836,7 +1875,11 @@ print.summary.lavaan.survey.mi <- function(x, digits=3, ...) {
       out[[paste0("ci.upper.", round(100 * level))]] <-
         format.mi.number(rows$ci.upper, digits=digits)
     }
-    print(out, row.names=FALSE, right=FALSE)
+    align <- rep("right", ncol(out))
+    names(align) <- names(out)
+    align[c("lhs", "rhs")] <- "left"
+    align["op"] <- "center"
+    print.mi.table(out, align=align)
   }
   invisible(x)
 }

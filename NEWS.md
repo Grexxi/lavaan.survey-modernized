@@ -24,7 +24,7 @@ endorsed by the original author/maintainer.
   per-imputation model fits and replicate-weight refits.
 * Improves `summary()` output for Rubin-pooled `lavaan.survey.mi` objects
   with a compact model header, pooled fit
-  measures, and block-formatted parameter tables.
+  measures, fixed-width aligned columns, and block-formatted parameter tables.
 * Adds extractor support for Rubin-pooled MI fits:
   `parameterEstimates()` returns pooled estimates with Barnard-Rubin degrees
   of freedom, and `fitMeasures()` returns pooled fit-measure averages.
