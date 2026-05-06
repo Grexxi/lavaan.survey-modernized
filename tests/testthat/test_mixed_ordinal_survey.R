@@ -643,7 +643,9 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
                tolerance=1e-10,
                check.attributes=FALSE)
 
-  summary_table <- capture.output(summary_out <- summary(fit_pooled))
+  summary_assign <- capture.output(summary_out <- summary(fit_pooled))
+  expect_length(summary_assign, 0)
+  summary_table <- capture.output(print(summary_out))
   expect_true(length(summary_table) > 0)
   expect_true(any(grepl("lavaan.survey MI Summary", summary_table,
                         fixed=TRUE)))
@@ -708,8 +710,8 @@ test_that("mixed MI parameter pooling can use replicate within variance", {
                check.attributes=FALSE)
   expect_equal(attr(std_replicate, "standardized.se"), "replicate")
 
-  summary_std <- capture.output(summary_std_out <- summary(fit_pooled,
-                                                           standardized=TRUE))
+  summary_std_out <- summary(fit_pooled, standardized=TRUE)
+  summary_std <- capture.output(print(summary_std_out))
   expect_true(any(grepl("pooled std.all column shown", summary_std,
                         fixed=TRUE)))
   expect_true("Std.all" %in% names(summary_std_out))
